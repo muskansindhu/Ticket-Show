@@ -1,57 +1,57 @@
 <template>
-  <div class="preview-page">
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-background">
-        <div class="hero-overlay"></div>
-        <div class="hero-shapes">
-          <div class="hero-shape hero-shape-1"></div>
-          <div class="hero-shape hero-shape-2"></div>
-          <div class="hero-shape hero-shape-3"></div>
+  <div class="preview-page-dark">
+    <!-- Dark Hero Section -->
+    <section class="hero-section-dark">
+      <div class="hero-background-dark">
+        <div class="hero-overlay-dark"></div>
+        <div class="hero-shapes-dark">
+          <div class="hero-shape-dark hero-shape-1"></div>
+          <div class="hero-shape-dark hero-shape-2"></div>
+          <div class="hero-shape-dark hero-shape-3"></div>
         </div>
       </div>
 
       <div class="container">
         <div class="row align-items-center min-vh-75">
           <div class="col-lg-6">
-            <div class="hero-content">
-              <h1 class="hero-title">
-                <span class="title-highlight">Premium</span>
+            <div class="hero-content-dark">
+              <h1 class="hero-title-dark">
+                <span class="title-highlight-dark">Premium</span>
                 Entertainment
                 <br />
-                <span class="title-accent">Awaits You</span>
+                <span class="title-accent-dark">Awaits You</span>
               </h1>
-              <p class="hero-description">
+              <p class="hero-description-dark">
                 Discover and book the most exciting shows, theaters, and
                 entertainment experiences. Your gateway to unforgettable moments
                 starts here.
               </p>
-              <div class="hero-stats">
-                <div class="stat-item">
-                  <div class="stat-number">{{ theaters.length }}+</div>
-                  <div class="stat-label">Theaters</div>
+              <div class="hero-stats-dark">
+                <div class="stat-item-dark">
+                  <div class="stat-number-dark">{{ theaters.length }}+</div>
+                  <div class="stat-label-dark">Theaters</div>
                 </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
-                  <div class="stat-number">{{ totalShows }}+</div>
-                  <div class="stat-label">Shows</div>
+                <div class="stat-divider-dark"></div>
+                <div class="stat-item-dark">
+                  <div class="stat-number-dark">{{ totalShows }}+</div>
+                  <div class="stat-label-dark">Shows</div>
                 </div>
-                <div class="stat-divider"></div>
-                <div class="stat-item">
-                  <div class="stat-number">1000+</div>
-                  <div class="stat-label">Happy Customers</div>
+                <div class="stat-divider-dark"></div>
+                <div class="stat-item-dark">
+                  <div class="stat-number-dark">1000+</div>
+                  <div class="stat-label-dark">Happy Customers</div>
                 </div>
               </div>
-              <div class="hero-actions">
+              <div class="hero-actions-dark">
                 <router-link
                   to="/login"
-                  class="btn btn-primary btn-lg hero-btn"
+                  class="btn btn-primary-dark btn-lg hero-btn-dark"
                 >
                   <i class="fas fa-ticket-alt me-2"></i>
                   Get Started
                 </router-link>
                 <button
-                  class="btn btn-outline-light btn-lg hero-btn-secondary"
+                  class="btn btn-outline-light btn-lg hero-btn-secondary-dark"
                   @click="scrollToShows"
                 >
                   <i class="fas fa-play-circle me-2"></i>
@@ -61,17 +61,17 @@
             </div>
           </div>
           <div class="col-lg-6">
-            <div class="hero-visual">
-              <div class="floating-cards">
-                <div class="floating-card card-1">
+            <div class="hero-visual-dark">
+              <div class="floating-cards-dark">
+                <div class="floating-card-dark card-1">
                   <i class="fas fa-theater-masks"></i>
                   <span>Drama</span>
                 </div>
-                <div class="floating-card card-2">
+                <div class="floating-card-dark card-2">
                   <i class="fas fa-music"></i>
                   <span>Musical</span>
                 </div>
-                <div class="floating-card card-3">
+                <div class="floating-card-dark card-3">
                   <i class="fas fa-laugh"></i>
                   <span>Comedy</span>
                 </div>
@@ -82,65 +82,65 @@
       </div>
     </section>
 
-    <!-- Shows Section -->
-    <section class="shows-section" id="shows">
+    <!-- Dark Shows Section -->
+    <section class="shows-section-dark" id="shows">
       <div class="container">
-        <div class="section-header text-center">
-          <h2 class="section-title">
-            <span class="title-accent">Featured</span> Shows & Theaters
+        <div class="section-header-dark text-center">
+          <h2 class="section-title-dark">
+            <span class="title-accent-dark">Featured</span> Shows & Theaters
           </h2>
-          <p class="section-description">
+          <p class="section-description-dark">
             Discover amazing entertainment options across our premium theater
             network
           </p>
         </div>
 
-        <div class="theaters-grid" v-if="theaters.length > 0">
+        <div class="theaters-grid-dark" v-if="theaters.length > 0">
           <div
-            class="theater-card fade-in-up"
+            class="theater-card-dark fade-in-up"
             v-for="(theater, index) in theaters"
             :key="index"
             :style="{ animationDelay: `${index * 0.1}s` }"
           >
-            <div class="theater-header">
-              <div class="theater-info">
-                <h3 class="theater-name">
+            <div class="theater-header-dark">
+              <div class="theater-info-dark">
+                <h3 class="theater-name-dark">
                   <i class="fas fa-building me-2"></i>
                   {{ theater.theater_name }}
                 </h3>
-                <p class="theater-location">
+                <p class="theater-location-dark">
                   <i class="fas fa-map-marker-alt me-2"></i>
                   {{ theater.location }}
                 </p>
-                <div class="theater-capacity">
+                <div class="theater-capacity-dark">
                   <i class="fas fa-users me-2"></i>
                   <span>Capacity: {{ theater.capacity }} seats</span>
                 </div>
               </div>
-              <div class="theater-badge">
-                <span class="badge bg-primary">Premium</span>
+              <div class="theater-badge-dark">
+                <span class="badge bg-primary-dark">Premium</span>
               </div>
             </div>
 
             <div
-              class="shows-grid"
+              class="shows-grid-dark"
               v-if="theater.shows && theater.shows.length > 0"
             >
               <div
-                class="show-card"
+                class="show-card-dark"
                 v-for="(show, showIndex) in theater.shows"
                 :key="showIndex"
               >
-                <div class="show-poster">
+                <div class="show-poster-dark">
                   <img
                     :src="posterImg(show.show_name)"
                     :alt="show.show_name"
-                    class="poster-image"
+                    class="poster-image-dark"
                     @error="handleImageError"
                   />
-                  <div class="poster-overlay">
-                    <div class="show-actions">
-                      <button class="btn btn-sm btn-light" disabled>
+                  <div class="poster-overlay-dark">
+                    <div class="show-actions-dark">
+                      <button class="btn btn-sm btn-light-dark" disabled>
                         <i class="fas fa-eye me-1"></i>
                         Preview
                       </button>
@@ -148,33 +148,33 @@
                   </div>
                 </div>
 
-                <div class="show-info">
-                  <h4 class="show-title">{{ show.show_name }}</h4>
-                  <div class="show-details">
-                    <div class="show-time">
+                <div class="show-info-dark">
+                  <h4 class="show-title-dark">{{ show.show_name }}</h4>
+                  <div class="show-details-dark">
+                    <div class="show-time-dark">
                       <i class="fas fa-clock me-2"></i>
                       {{ formatTime(show.time) }}
                     </div>
-                    <div class="show-seats">
+                    <div class="show-seats-dark">
                       <i class="fas fa-chair me-2"></i>
                       {{ availableSeats(theater.capacity, show.seats_booked) }}
                       available
                     </div>
                   </div>
 
-                  <div class="show-status">
+                  <div class="show-status-dark">
                     <template
                       v-if="
                         availableSeats(theater.capacity, show.seats_booked) > 0
                       "
                     >
-                      <div class="availability-indicator available">
+                      <div class="availability-indicator-dark available">
                         <span class="indicator"></span>
                         Available
                       </div>
                     </template>
                     <template v-else>
-                      <div class="availability-indicator sold-out">
+                      <div class="availability-indicator-dark sold-out">
                         <span class="indicator"></span>
                         Sold Out
                       </div>
@@ -184,15 +184,15 @@
               </div>
             </div>
 
-            <div class="no-shows" v-else>
+            <div class="no-shows-dark" v-else>
               <i class="fas fa-calendar-times"></i>
               <p>No shows currently scheduled</p>
             </div>
           </div>
         </div>
 
-        <div class="loading-state" v-else>
-          <div class="loading-spinner">
+        <div class="loading-state-dark" v-else>
+          <div class="loading-spinner-dark">
             <i class="fas fa-spinner fa-spin"></i>
           </div>
           <p>Loading amazing shows...</p>
@@ -200,16 +200,19 @@
       </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="cta-section">
+    <!-- Dark CTA Section -->
+    <section class="cta-section-dark">
       <div class="container">
-        <div class="cta-content text-center">
-          <h2 class="cta-title">Ready to Experience Something Amazing?</h2>
-          <p class="cta-description">
+        <div class="cta-content-dark text-center">
+          <h2 class="cta-title-dark">Ready to Experience Something Amazing?</h2>
+          <p class="cta-description-dark">
             Join thousands of entertainment lovers and never miss a great show
             again.
           </p>
-          <router-link to="/login" class="btn btn-primary btn-lg cta-btn">
+          <router-link
+            to="/login"
+            class="btn btn-primary-dark btn-lg cta-btn-dark"
+          >
             <i class="fas fa-rocket me-2"></i>
             Start Your Journey
           </router-link>
@@ -340,50 +343,53 @@ export default {
 </script>
 
 <style scoped>
-.preview-page {
+.preview-page-dark {
   overflow-x: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
-/* Hero Section */
-.hero-section {
+/* Dark Hero Section */
+.hero-section-dark {
   position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
-  color: white;
+  color: var(--text-primary);
 }
 
-.hero-background {
+.hero-background-dark {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
   z-index: -1;
 }
 
-.hero-overlay {
+.hero-overlay-dark {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(15, 15, 35, 0.4);
 }
 
-.hero-shapes {
+.hero-shapes-dark {
   position: absolute;
   width: 100%;
   height: 100%;
   overflow: hidden;
 }
 
-.hero-shape {
+.hero-shape-dark {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(139, 92, 246, 0.08);
   animation: heroFloat 8s ease-in-out infinite;
+  backdrop-filter: blur(2px);
 }
 
 .hero-shape-1 {
@@ -392,6 +398,7 @@ export default {
   top: -10%;
   right: -10%;
   animation-delay: 0s;
+  background: rgba(139, 92, 246, 0.06);
 }
 
 .hero-shape-2 {
@@ -400,6 +407,7 @@ export default {
   bottom: -5%;
   left: -5%;
   animation-delay: 3s;
+  background: rgba(99, 102, 241, 0.06);
 }
 
 .hero-shape-3 {
@@ -408,17 +416,18 @@ export default {
   top: 50%;
   left: 50%;
   animation-delay: 6s;
+  background: rgba(6, 182, 212, 0.06);
 }
 
 @keyframes heroFloat {
   0%,
   100% {
     transform: translate(0, 0) rotate(0deg);
-    opacity: 0.1;
+    opacity: 0.6;
   }
   50% {
     transform: translate(-20px, -20px) rotate(180deg);
-    opacity: 0.2;
+    opacity: 0.8;
   }
 }
 
@@ -426,100 +435,113 @@ export default {
   min-height: 75vh;
 }
 
-.hero-content {
+.hero-content-dark {
   padding: 2rem 0;
 }
 
-.hero-title {
+.hero-title-dark {
   font-size: 3.5rem;
   font-weight: 800;
   line-height: 1.2;
   margin-bottom: 1.5rem;
+  color: var(--text-primary);
 }
 
-.title-highlight {
+.title-highlight-dark {
   background: linear-gradient(45deg, #ffd700, #ffed4e);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
 }
 
-.title-accent {
-  color: rgba(255, 255, 255, 0.9);
+.title-accent-dark {
+  color: var(--text-secondary);
   font-weight: 300;
 }
 
-.hero-description {
+.hero-description-dark {
   font-size: 1.25rem;
   line-height: 1.6;
   margin-bottom: 2rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
 }
 
-.hero-stats {
+.hero-stats-dark {
   display: flex;
   align-items: center;
   gap: 1.5rem;
   margin-bottom: 2.5rem;
   padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(30, 41, 59, 0.8);
   border-radius: 16px;
   backdrop-filter: blur(10px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
 }
 
-.stat-item {
+.stat-item-dark {
   text-align: center;
 }
 
-.stat-number {
+.stat-number-dark {
   font-size: 2rem;
   font-weight: 700;
-  color: #ffd700;
+  background: linear-gradient(135deg, #ffd700, var(--primary-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.stat-label {
+.stat-label-dark {
   font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
-.stat-divider {
+.stat-divider-dark {
   width: 2px;
   height: 40px;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--border-color);
 }
 
-.hero-actions {
+.hero-actions-dark {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
 }
 
-.hero-btn {
+.hero-btn-dark {
   padding: 1rem 2rem;
   font-weight: 600;
   border-radius: 12px;
   transition: all 0.3s ease;
   text-decoration: none;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--primary-dark)
+  );
+  color: white;
 }
 
-.hero-btn:hover {
+.hero-btn-dark:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+  color: white;
 }
 
-.hero-btn-secondary {
+.hero-btn-secondary-dark {
   background: transparent;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  color: white;
+  border: 2px solid rgba(241, 245, 249, 0.3);
+  color: var(--text-primary);
 }
 
-.hero-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: white;
-  color: white;
+.hero-btn-secondary-dark:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: var(--primary-color);
+  color: var(--primary-light);
 }
 
-.hero-visual {
+.hero-visual-dark {
   position: relative;
   height: 500px;
   display: flex;
@@ -527,30 +549,39 @@ export default {
   justify-content: center;
 }
 
-.floating-cards {
+.floating-cards-dark {
   position: relative;
   width: 100%;
   height: 100%;
 }
 
-.floating-card {
+.floating-card-dark {
   position: absolute;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(30, 41, 59, 0.8);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(139, 92, 246, 0.3);
   border-radius: 16px;
   padding: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  color: white;
+  color: var(--text-primary);
   animation: cardFloat 6s ease-in-out infinite;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
-.floating-card i {
+.floating-card-dark i {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--accent-color)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .card-1 {
@@ -575,137 +606,154 @@ export default {
   0%,
   100% {
     transform: translateY(0px) rotate(0deg);
+    opacity: 0.9;
   }
   50% {
     transform: translateY(-20px) rotate(5deg);
+    opacity: 1;
   }
 }
 
-/* Shows Section */
-.shows-section {
+/* Dark Shows Section */
+.shows-section-dark {
   padding: 5rem 0;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(
+    135deg,
+    var(--bg-primary) 0%,
+    var(--bg-secondary) 100%
+  );
 }
 
-.section-header {
+.section-header-dark {
   margin-bottom: 4rem;
 }
 
-.section-title {
+.section-title-dark {
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 1rem;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
-.section-description {
+.section-description-dark {
   font-size: 1.2rem;
-  color: #718096;
+  color: var(--text-secondary);
   max-width: 600px;
   margin: 0 auto;
 }
 
-.theaters-grid {
+.theaters-grid-dark {
   display: grid;
   gap: 2rem;
 }
 
-.theater-card {
-  background: white;
+.theater-card-dark {
+  background: var(--bg-card);
   border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
   transition: all 0.3s ease;
+  border: 1px solid var(--border-color);
 }
 
-.theater-card:hover {
+.theater-card-dark:hover {
   transform: translateY(-10px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
-.theater-header {
+.theater-header-dark {
   padding: 2rem;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--secondary-color)
+  );
   color: white;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
 }
 
-.theater-name {
+.theater-name-dark {
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
+  color: white;
 }
 
-.theater-location {
+.theater-location-dark {
   font-size: 1rem;
   margin-bottom: 0.5rem;
   opacity: 0.9;
   display: flex;
   align-items: center;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.theater-capacity {
+.theater-capacity-dark {
   font-size: 0.9rem;
   opacity: 0.8;
   display: flex;
   align-items: center;
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.theater-badge .badge {
+.theater-badge-dark .badge {
   font-size: 0.8rem;
   padding: 0.5rem 1rem;
   border-radius: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
-.shows-grid {
+.shows-grid-dark {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   padding: 2rem;
 }
 
-.show-card {
-  background: #f8fafc;
+.show-card-dark {
+  background: var(--bg-card-hover);
   border-radius: 16px;
   overflow: hidden;
   transition: all 0.3s ease;
   border: 2px solid transparent;
 }
 
-.show-card:hover {
-  border-color: #667eea;
+.show-card-dark:hover {
+  border-color: var(--primary-color);
   transform: translateY(-5px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 10px 25px rgba(139, 92, 246, 0.2);
 }
 
-.show-poster {
+.show-poster-dark {
   position: relative;
   height: 200px;
   overflow: hidden;
 }
 
-.poster-image {
+.poster-image-dark {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease;
 }
 
-.show-card:hover .poster-image {
+.show-card-dark:hover .poster-image-dark {
   transform: scale(1.05);
 }
 
-.poster-overlay {
+.poster-overlay-dark {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(15, 15, 35, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -713,40 +761,47 @@ export default {
   transition: opacity 0.3s ease;
 }
 
-.show-card:hover .poster-overlay {
+.show-card-dark:hover .poster-overlay-dark {
   opacity: 1;
 }
 
-.show-info {
-  padding: 1.5rem;
+.btn-light-dark {
+  background: rgba(241, 245, 249, 0.9);
+  color: var(--bg-primary);
+  border: none;
 }
 
-.show-title {
+.show-info-dark {
+  padding: 1.5rem;
+  background: var(--bg-card);
+}
+
+.show-title-dark {
   font-size: 1.2rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: #2d3748;
+  color: var(--text-primary);
 }
 
-.show-details {
+.show-details-dark {
   margin-bottom: 1rem;
 }
 
-.show-time,
-.show-seats {
+.show-time-dark,
+.show-seats-dark {
   display: flex;
   align-items: center;
   font-size: 0.9rem;
-  color: #718096;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
-.show-status {
+.show-status-dark {
   display: flex;
   align-items: center;
 }
 
-.availability-indicator {
+.availability-indicator-dark {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -754,86 +809,99 @@ export default {
   font-weight: 500;
 }
 
-.availability-indicator .indicator {
+.availability-indicator-dark .indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
 }
 
 .available .indicator {
-  background: #48bb78;
+  background: var(--success-color);
 }
 
 .available {
-  color: #48bb78;
+  color: var(--success-color);
 }
 
 .sold-out .indicator {
-  background: #f56565;
+  background: var(--danger-color);
 }
 
 .sold-out {
-  color: #f56565;
+  color: var(--danger-color);
 }
 
-.no-shows {
+.no-shows-dark {
   padding: 3rem 2rem;
   text-align: center;
-  color: #a0aec0;
+  color: var(--text-muted);
 }
 
-.no-shows i {
+.no-shows-dark i {
   font-size: 3rem;
   margin-bottom: 1rem;
   opacity: 0.5;
 }
 
-.loading-state {
+.loading-state-dark {
   text-align: center;
   padding: 4rem 0;
-  color: #718096;
+  color: var(--text-secondary);
 }
 
-.loading-spinner {
+.loading-spinner-dark {
   font-size: 3rem;
   margin-bottom: 1rem;
-  color: #667eea;
+  color: var(--primary-color);
 }
 
-/* CTA Section */
-.cta-section {
+/* Dark CTA Section */
+.cta-section-dark {
   padding: 5rem 0;
-  background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
-  color: white;
+  background: linear-gradient(
+    135deg,
+    var(--bg-secondary) 0%,
+    var(--bg-tertiary) 100%
+  );
+  color: var(--text-primary);
+  border-top: 1px solid var(--border-color);
 }
 
-.cta-title {
+.cta-title-dark {
   font-size: 2.5rem;
   font-weight: 700;
   margin-bottom: 1rem;
+  color: var(--text-primary);
 }
 
-.cta-description {
+.cta-description-dark {
   font-size: 1.2rem;
   margin-bottom: 2rem;
-  opacity: 0.9;
+  color: var(--text-secondary);
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.cta-btn {
+.cta-btn-dark {
   padding: 1rem 2rem;
   font-size: 1.1rem;
   font-weight: 600;
   border-radius: 12px;
   transition: all 0.3s ease;
   text-decoration: none;
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--accent-color)
+  );
+  color: white;
 }
 
-.cta-btn:hover {
+.cta-btn-dark:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 10px 25px rgba(139, 92, 246, 0.4);
+  color: white;
 }
 
 /* Animations */
@@ -855,63 +923,112 @@ export default {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .hero-title {
+  .hero-title-dark {
     font-size: 2.5rem;
   }
 
-  .hero-stats {
+  .hero-stats-dark {
     flex-direction: column;
     gap: 1rem;
   }
 
-  .stat-divider {
+  .stat-divider-dark {
     width: 100%;
     height: 2px;
   }
 
-  .hero-actions {
+  .hero-actions-dark {
     flex-direction: column;
   }
 
-  .floating-cards {
+  .floating-cards-dark {
     display: none;
   }
 
-  .section-title {
+  .section-title-dark {
     font-size: 2rem;
   }
 
-  .shows-grid {
+  .shows-grid-dark {
     grid-template-columns: 1fr;
     padding: 1rem;
   }
 
-  .theater-header {
+  .theater-header-dark {
     padding: 1.5rem;
     flex-direction: column;
     gap: 1rem;
   }
 
-  .cta-title {
+  .cta-title-dark {
     font-size: 2rem;
   }
 }
 
 @media (max-width: 480px) {
-  .hero-title {
+  .hero-title-dark {
     font-size: 2rem;
   }
 
-  .hero-description {
+  .hero-description-dark {
     font-size: 1.1rem;
   }
 
-  .hero-stats {
+  .hero-stats-dark {
     padding: 1rem;
   }
 
-  .stat-number {
+  .stat-number-dark {
     font-size: 1.5rem;
   }
+}
+
+/* Dark Mode Enhancements */
+.bg-primary-dark {
+  background: var(--primary-color);
+}
+
+/* Loading Animation */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.loading-spinner-dark i {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Hover effects for better interactivity */
+.hero-btn-dark,
+.cta-btn-dark {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-btn-dark::before,
+.cta-btn-dark::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s;
+}
+
+.hero-btn-dark:hover::before,
+.cta-btn-dark:hover::before {
+  left: 100%;
 }
 </style>
