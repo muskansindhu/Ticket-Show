@@ -118,7 +118,7 @@
                     <li>
                       <a
                         class="dropdown-item"
-                        @click="deleteTheater(theater.id)"
+                        @click="deleteTheater(theater.roll)"
                       >
                         <i class="fas fa-trash me-2"></i>Delete Theater
                       </a>
@@ -196,7 +196,7 @@
                     </button>
                     <button
                       class="btn btn-delete-show-dark"
-                      @click="deleteShow(theater.id, show.id)"
+                      @click="deleteShow(theater.roll, show.roll)"
                     >
                       <i class="fas fa-trash"></i>
                     </button>
@@ -500,28 +500,33 @@ export default {
       }
     },
     editShow(theater, show) {
-      // This method needs to be implemented to open a modal for editing the show
-      // For now, it will just log the action
-      console.log("Edit Show:", theater, show);
-      // Example: this.showEditShowModal = true;
+      this.$router.push({ name: "admin-edit-show", params: { id: show.roll } });
     },
-    deleteShow(theaterId, showId) {
-      // This method needs to be implemented to delete the show
-      // For now, it will just log the action
-      console.log("Delete Show:", theaterId, showId);
-      // Example: this.showDeleteShowModal = true;
+    async deleteShow(theaterId, showId) {
+      try {
+        if (this.userSession && this.userSession.token) {
+          axios.defaults.headers.common["Authorization"] = `Bearer ${this.userSession.token}`;
+          await axios.delete(`http://127.0.0.1:1234/vue/show/${showId}`);
+          alert("Show deleted Successfully");
+          this.getTheater();
+        } else {
+          alert("User not authenticated. Please log in.");
+        }
+      } catch (error) {
+        console.error("AxiosError:", error);
+        if (error.response) {
+          console.error("Response Data:", error.response.data);
+        } else {
+          console.error("Network Error:", error.message);
+        }
+        alert("Oops! An error occurred. Show was not deleted.");
+      }
     },
     addShow(theater) {
-      // This method needs to be implemented to open a modal for adding a new show
-      // For now, it will just log the action
-      console.log("Add Show:", theater);
-      // Example: this.showAddShowModal = true;
+      this.$router.push({ name: "admin-add-show", params: { id: theater.roll } });
     },
     viewAnalytics(theater) {
-      // This method needs to be implemented to navigate to analytics page
-      // For now, it will just log the action
-      console.log("View Analytics:", theater);
-      // Example: this.$router.push(`/theater/${theater.roll}/analytics`);
+      this.$router.push({ name: "analytics", params: { id: theater.roll } });
     },
   },
   async created() {

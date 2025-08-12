@@ -164,17 +164,17 @@ export default {
   --accent-color: #06b6d4;
   --accent-dark: #0891b2;
 
-  /* Dark Theme Colors */
-  --bg-primary: #0f0f23;
-  --bg-secondary: #1a1a2e;
-  --bg-tertiary: #16213e;
-  --bg-card: #1e293b;
-  --bg-card-hover: #334155;
+  /* Dark Theme Colors - pure black palette */
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #121212;
+  --bg-card: #0d0d0d;
+  --bg-card-hover: #141414;
 
   /* Text Colors */
-  --text-primary: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
+  --text-primary: #e5e5e5;
+  --text-secondary: #b3b3b3;
+  --text-muted: #8c8c8c;
   --text-accent: #60a5fa;
 
   /* Status Colors */
@@ -188,12 +188,12 @@ export default {
   --info-dark: #2563eb;
 
   /* Border and Shadow */
-  --border-color: #374151;
-  --border-light: #4b5563;
+  --border-color: #222222;
+  --border-light: #333333;
   --border-focus: var(--primary-color);
-  --shadow-dark: 0 10px 25px rgba(0, 0, 0, 0.5);
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3);
-  --shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.4);
+  --shadow-dark: 0 10px 25px rgba(0, 0, 0, 0.7);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 8px 30px rgba(0, 0, 0, 0.6);
 
   /* Other Variables */
   --border-radius: 12px;
