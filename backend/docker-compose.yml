@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ticket-show-postgres
+    environment:
+      POSTGRES_USER: ticketshow
+      POSTGRES_PASSWORD: ticketshow123
+      POSTGRES_DB: ticketshow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketshow -d ticketshow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ticket-show-network
+
+  # 2. Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth_service/Dockerfile
+    container_name: ticket-show-auth
+    expose:
+      - "8000"
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # 3. API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api_gateway/Dockerfile
+    container_name: ticket-show-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8000
+    depends_on:
+      - auth-service
+    networks:
+      - ticket-show-network
+
+networks:
+  ticket-show-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

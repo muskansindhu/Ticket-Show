@@ -1,6 +1,4 @@
-backend/__pycache__
-backend/application/__pycache__
 backend/venv
-backend/.key
+__pycache__
 
-frontend/node_modules
+.DS_store
