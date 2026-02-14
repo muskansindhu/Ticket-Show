@@ -1,19 +1,20 @@
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://ticketshow:ticketshow123@ticket-show-postgres:5432/ticketshow"
 
-
-    # JWT
+    # Kafka
+    KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9093"
+    
+    # JWT 
     JWT_SECRET: str = "test-secret-key-for-jwt-generation"
-    JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRATION_MINUTES: int = 6000
-
+    
     # Service
-    SERVICE_NAME: str = "auth-service"
+    SERVICE_NAME: str = "event-service"
     LOG_LEVEL: str = "INFO"
-
+    
     class Config:
         env_file = ".env"
 

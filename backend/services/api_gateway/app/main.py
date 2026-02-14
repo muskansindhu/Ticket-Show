@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routes import auth_router
+from .routes import auth_router, shows_router, venues_router, screens_router, schedules_router
 from shared.utils import setup_logger
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
@@ -25,6 +25,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth_router)
+app.include_router(shows_router)
+app.include_router(venues_router)
+app.include_router(screens_router)
+app.include_router(schedules_router)
 
 
 @app.get("/health")

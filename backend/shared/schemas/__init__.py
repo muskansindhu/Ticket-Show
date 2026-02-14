@@ -3,7 +3,7 @@ from .models import (
     UserLogin,
     UserResponse,
     Token,
-    TokenData
+    TokenData,
 )
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     "UserLogin",
     "UserResponse",
     "Token",
-    "TokenData"
+    "TokenData",
 ]

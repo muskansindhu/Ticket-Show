@@ -1,5 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
 from typing import Optional
+
 
 # User Schemas
 class UserCreate(BaseModel):
@@ -26,3 +28,13 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+class SeatResponse(BaseModel):
+    id: int
+    event_id: int
+    seat_number: str
+    row_number: str
+    is_available: bool
+
+    class Config:
+        from_attributes = True

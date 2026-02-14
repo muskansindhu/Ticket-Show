@@ -80,7 +80,7 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
         # Create access token with role claim
         access_token = create_access_token(
             data={
-                "sub": user.id,
+                "sub": str(user.id),
                 "email": user.email,
                 "role": user.role.value  # Include role in JWT
             }
