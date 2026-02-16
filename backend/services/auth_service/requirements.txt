@@ -9,3 +9,4 @@ python-multipart==0.0.6
 pydantic[email]
 bcrypt==4.0.1
 passlib[bcrypt]
+aiokafka==0.10.0

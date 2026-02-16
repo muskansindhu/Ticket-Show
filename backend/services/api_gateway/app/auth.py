@@ -1,8 +1,9 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from .config import settings
+
 from shared.utils import setup_logger
+from .config import settings
 
 logger = setup_logger(__name__)
 security = HTTPBearer()
@@ -11,22 +12,19 @@ security = HTTPBearer()
 def verify_token(token: str) -> dict:
     """Verify JWT token"""
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET,
-            algorithms=["HS256"]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
         return payload
     except JWTError as e:
-        logger.error(f"Token verification failed : {str(e)}")
+        logger.error(f"Token verification failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """Get current user from JWT token"""
     token = credentials.credentials
@@ -36,11 +34,8 @@ async def get_current_user(
 
     if user_id is None:
         raise HTTPException(
-            status_code = status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
         )
-    
-    return {
-        "user_id" : user_id,
-        "email" : payload.get("email")
-    }
+
+    return {"user_id": user_id, "email": payload.get("email")}

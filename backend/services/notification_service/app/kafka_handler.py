@@ -1,0 +1,206 @@
+import asyncio
+import textwrap
+from email.message import EmailMessage
+
+import aiosmtplib
+
+from shared.schemas import BookingFailedEvent, BookingSuccessfulEvent
+from shared.utils import KafkaConsumerClient, setup_logger
+from .config import settings
+
+logger = setup_logger(__name__)
+
+
+def _format_from_address() -> str:
+    if settings.SMTP_FROM_NAME:
+        return f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
+    return settings.SMTP_FROM_EMAIL
+
+
+def _resolve_recipient_email(event) -> str | None:
+    if getattr(event, "user_email", None):
+        return event.user_email
+    if settings.DEFAULT_TO_EMAIL:
+        return settings.DEFAULT_TO_EMAIL
+    if settings.DEFAULT_EMAIL_DOMAIN:
+        return f"user_{event.user_id}@{settings.DEFAULT_EMAIL_DOMAIN}"
+    return None
+
+
+async def send_email_notification(to_email: str, subject: str, body: str):
+    """Send email notification using SMTP"""
+    if not settings.SMTP_HOST:
+        raise RuntimeError("SMTP_HOST is not configured")
+
+    use_ssl = settings.SMTP_USE_SSL
+    use_tls = settings.SMTP_USE_TLS and not use_ssl
+
+    if settings.SMTP_USE_TLS and settings.SMTP_USE_SSL:
+        logger.warning("Both SMTP_USE_TLS and SMTP_USE_SSL set; using SSL only")
+
+    message = EmailMessage()
+    message["From"] = _format_from_address()
+    message["To"] = to_email
+    message["Subject"] = subject
+    message.set_content(body)
+
+    await aiosmtplib.send(
+        message,
+        hostname=settings.SMTP_HOST,
+        port=settings.SMTP_PORT,
+        username=settings.SMTP_USER or None,
+        password=settings.SMTP_PASSWORD or None,
+        start_tls=use_tls,
+        use_tls=use_ssl,
+        timeout=settings.SMTP_TIMEOUT,
+    )
+
+    logger.info("Email sent to %s: %s", to_email, subject)
+
+
+
+async def handle_booking_successful(message: dict):
+    """Handle booking.successful event"""
+    try:
+        event = BookingSuccessfulEvent(**message)
+        
+        logger.info(
+            f"Processing booking successful event for booking {event.booking_id}",
+            extra={"correlation_id": event.correlation_id},
+        )
+
+        to_email = _resolve_recipient_email(event)
+        if not to_email:
+            raise ValueError(
+                "No recipient email available. Provide user_email in the event or set "
+                "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
+            )
+        
+        # Send confirmation notification
+        subject = "Your Ticket Show booking is confirmed"
+        body = textwrap.dedent(
+            f"""
+            Hi there,
+
+            Great news — your booking is confirmed! We’re excited to see you at the show.
+
+            Booking ID: {event.booking_id}
+            Schedule ID: {event.schedule_id}
+            Seats: {len(event.seat_ids)}
+            Total Paid: ${event.total_amount}
+
+            If you have any questions, just reply to this email and we’ll help out.
+
+            Thanks for choosing Ticket Show,
+            The Ticket Show Team
+            """
+        ).strip()
+
+        await send_email_notification(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+        )
+
+        logger.info(
+            f"Confirmation notification sent for booking {event.booking_id}",
+            extra={"correlation_id": event.correlation_id},
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error handling booking confirmed event: {str(e)}",
+            exc_info=True,
+        )
+        raise
+
+
+async def handle_booking_failed(message: dict):
+    """Handle booking.failed event"""
+    try:
+        event = BookingFailedEvent(**message)
+        
+        logger.info(
+            f"Processing booking failed event for booking {event.booking_id}",
+            extra={"correlation_id": event.correlation_id},
+        )
+
+        to_email = _resolve_recipient_email(event)
+        if not to_email:
+            raise ValueError(
+                "No recipient email available. Provide user_email in the event or set "
+                "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
+            )
+
+        # Send failure notification
+        subject = "We couldn’t complete your Ticket Show booking"
+        body = textwrap.dedent(
+            f"""
+            Hi there,
+
+            Sorry — we couldn’t complete your booking this time.
+
+            Booking ID: {event.booking_id}
+            Reason: {event.reason}
+
+            Please try again, and if this keeps happening just reply to this email so we can help.
+
+            Thanks for your patience,
+            The Ticket Show Team
+            """
+        ).strip()
+
+        await send_email_notification(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+        )
+
+        logger.info(
+            f"Failure notification sent for booking {event.booking_id}",
+            extra={"correlation_id": event.correlation_id},
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error handling booking failed event: {str(e)}",
+            exc_info=True,
+        )
+        raise
+
+
+async def start_kafka_consumers():
+    """Start Kafka consumers for notification events"""
+    # Consumer for booking.successful
+    successful_consumer = KafkaConsumerClient(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id="notification-service-successful-group",
+        topics=["booking.successful"],
+        max_retries=3,
+        retry_delay=1,
+    )
+
+    # Consumer for booking.failed
+    failed_consumer = KafkaConsumerClient(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id="notification-service-failed-group",
+        topics=["booking.failed"],
+        max_retries=3,
+        retry_delay=1,
+    )
+
+    await successful_consumer.start()
+    await failed_consumer.start()
+
+    logger.info("Kafka consumers started for booking.successful and booking.failed")
+
+    # Start consuming in parallel
+    await asyncio.gather(
+        successful_consumer.consume(handle_booking_successful),
+        failed_consumer.consume(handle_booking_failed),
+    )
+
+
+def run_consumers():
+    """Run the Kafka consumers in the background"""
+    asyncio.create_task(start_kafka_consumers())

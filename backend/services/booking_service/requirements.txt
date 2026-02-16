@@ -4,6 +4,10 @@ sqlalchemy==2.0.25
 asyncpg==0.29.0
 pydantic==2.5.3
 pydantic-settings==2.1.0
-pydantic[email]
 python-jose[cryptography]==3.3.0
+aiokafka==0.10.0
+redis==5.0.1
+pydantic[email]
+bcrypt==4.0.1
+passlib[bcrypt]
 aiokafka==0.10.0

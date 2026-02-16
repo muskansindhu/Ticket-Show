@@ -5,8 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from shared.utils import setup_logger
 from .config import settings
-from .database import Base, engine
-from .routes import router
+from .kafka_handler import run_consumers
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
 
@@ -17,9 +16,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"{settings.SERVICE_NAME} starting up...")
 
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Start Kafka consumers
+    run_consumers()
 
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 
@@ -27,13 +25,13 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info(f"{settings.SERVICE_NAME} shutting down...")
-    await engine.dispose()
     logger.info(f"{settings.SERVICE_NAME} shut down successfully")
 
 
+# Create FastAPI app
 app = FastAPI(
-    title="Auth Service",
-    description="Authentication and authorization service for Ticket Show",
+    title="Notification Service",
+    description="Notification service for Ticket Show",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -46,9 +44,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include routers
-app.include_router(router)
 
 
 @app.get("/health")

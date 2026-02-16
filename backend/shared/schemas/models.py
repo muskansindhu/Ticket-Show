@@ -1,17 +1,42 @@
-from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
-from typing import Optional
+from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr, Field
+
+
+# Enums
+class BookingStatus(str, Enum):
+    PENDING = "PENDING"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+
+
+class PaymentStatus(str, Enum):
+    PENDING = "PENDING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class PaymentMethod(str, Enum):
+    CARD = "CARD"
+    UPI = "UPI"
+    NETBANKING = "NETBANKING"
+    WALLET = "WALLET"
 
 
 # User Schemas
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8) 
+    password: str = Field(..., min_length=8)
     username: str = Field(..., min_length=1)
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserResponse(BaseModel):
     id: int
@@ -21,13 +46,16 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+
 class TokenData(BaseModel):
     user_id: Optional[int] = None
     email: Optional[str] = None
+
 
 class SeatResponse(BaseModel):
     id: int
@@ -38,3 +66,105 @@ class SeatResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Booking Schemas
+class BookingCreate(BaseModel):
+    schedule_id: int
+    seat_ids: List[int] = Field(..., min_items=1)
+    idempotency_key: str = Field(..., min_length=1)
+
+
+class BookingResponse(BaseModel):
+    id: int
+    user_id: int
+    schedule_id: int
+    seat_ids: List[int]
+    total_amount: float
+    status: BookingStatus
+    correlation_id: str
+    created_at: datetime
+    expires_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Kafka Event Schemas
+class BookingCreatedEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    schedule_id: int
+    seat_ids: List[int]
+    total_amount: float
+    correlation_id: str
+    idempotency_key: str
+    created_at: datetime
+
+
+class PaymentCompletedEvent(BaseModel):
+    payment_id: int
+    booking_id: int
+    user_id: int
+    amount: float
+    status: PaymentStatus
+    transaction_id: Optional[str]
+    correlation_id: str
+    idempotency_key: str
+    created_at: datetime
+
+
+class BookingConfirmedEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    schedule_id: int
+    seat_ids: List[int]
+    total_amount: float
+    correlation_id: str
+    confirmed_at: datetime
+
+
+class BookingSuccessfulEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    user_email: Optional[EmailStr] = None
+    schedule_id: int
+    seat_ids: List[int]
+    total_amount: float
+    correlation_id: str
+    confirmed_at: datetime
+
+
+class BookingFailedEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    user_email: Optional[EmailStr] = None
+    reason: str
+    correlation_id: str
+    failed_at: datetime
+
+
+# Payment Schemas
+class PaymentResponse(BaseModel):
+    id: int
+    idempotency_key: str
+    booking_id: int
+    user_id: int
+    amount: float
+    status: PaymentStatus
+    payment_method: PaymentMethod
+    transaction_id: str
+    correlation_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Payment Create Schema
+class PaymentCreate(BaseModel):
+    booking_id: int
+    amount: float
+    payment_method: PaymentMethod
+    user_id: int
+    user_email: Optional[EmailStr] = None

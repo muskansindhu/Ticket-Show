@@ -7,6 +7,9 @@ from .config import settings
 engine = create_async_engine(
     settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
     echo=True,
+    future=True,
+    pool_size=20,
+    max_overflow=40,
 )
 
 # Create session factory
@@ -15,7 +18,6 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
 
 Base = declarative_base()
 

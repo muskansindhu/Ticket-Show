@@ -1,7 +1,9 @@
 version: "3.8"
 
 services:
-  # 1 PostgreSQL Database
+  # =======================
+  # 1️⃣ PostgreSQL Database
+  # =======================
   postgres:
     image: postgres:15-alpine
     container_name: ticket-show-postgres
@@ -22,7 +24,9 @@ services:
     networks:
       - ticket-show-network
 
-  # 2 Auth Service (DEV MODE)
+  # =======================
+  # 2️⃣ Auth Service
+  # =======================
   auth-service:
     build:
       context: .
@@ -35,15 +39,17 @@ services:
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
-      - JWT_SECRET=super-secret-key
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - ticket-show-network
 
-  # 3 Event Service (DEV MODE)
+  # =======================
+  # 3️⃣ Event Service
+  # =======================
   event-service:
     build:
       context: .
@@ -53,18 +59,101 @@ services:
       - ./services/event_service:/app
       - ./shared:/app/shared
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
-      - JWT_SECRET=super-secret-key
     ports:
       - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - ticket-show-network
 
-  # 4 API Gateway (DEV MODE)
+  # =======================
+  # 4️⃣ Booking Service
+  # =======================
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking_service/Dockerfile
+    container_name: ticket-show-booking
+    volumes:
+      - ./services/booking_service:/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 5️⃣ Payment Service
+  # =======================
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment_service/Dockerfile
+    container_name: ticket-show-payment
+    volumes:
+      - ./services/payment_service:/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 6️⃣ Notification Service
+  # =======================
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification_service/Dockerfile
+    container_name: ticket-show-notification
+    volumes:
+      - ./services/notification_service:/app
+      - ./shared:/app/shared
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8005:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM_EMAIL: no-reply@ticketshow.local
+      SMTP_FROM_NAME: Ticket Show
+      DEFAULT_TO_EMAIL: notifications@example.com
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 7️⃣ API Gateway
+  # =======================
   api-gateway:
     build:
       context: .
@@ -77,17 +166,97 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - AUTH_SERVICE_URL=http://auth-service:8000
-      - EVENT_SERVICE_URL=http://event-service:8000
-      - JWT_SECRET=super-secret-key
+      AUTH_SERVICE_URL: http://auth-service:8000
+      EVENT_SERVICE_URL: http://event-service:8000
+      BOOKING_SERVICE_URL: http://booking-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      JWT_SECRET: super-secret-key
     depends_on:
-      - auth-service
+      auth-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
     networks:
       - ticket-show-network
 
+  # =======================
+  # 8️⃣ Zookeeper
+  # =======================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: ticket-show-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 9️⃣ Kafka
+  # =======================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ticket-show-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-broker-api-versions --bootstrap-server localhost:9092",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 🔟 Mailpit (SMTP)
+  # =======================
+  mailpit:
+    image: axllent/mailpit:v1.14.1
+    container_name: ticket-show-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - ticket-show-network
+
+# =======================
+# Networks
+# =======================
 networks:
   ticket-show-network:
     driver: bridge
 
+# =======================
+# Named Volumes
+# =======================
 volumes:
   postgres_data:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:

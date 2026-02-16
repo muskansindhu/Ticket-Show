@@ -17,11 +17,11 @@ async def proxy_request(method: str, url: str, **kwargs):
 
             raise HTTPException(
                 status_code=e.response.status_code,
-                detail=detail
+                detail=detail,
             )
 
         except httpx.RequestError:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Service unavailable"
+                detail="Service unavailable",
             )

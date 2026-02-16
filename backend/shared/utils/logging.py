@@ -1,8 +1,9 @@
-import logging
 import json
-from datetime import datetime
-from typing import Dict, Any
+import logging
 import sys
+from datetime import datetime
+from typing import Any, Dict
+
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging"""
@@ -23,14 +24,13 @@ class JSONFormatter(logging.Formatter):
 
         # Use update() instead of assignment to keep the structure flat (avoid nesting).
         if hasattr(record, "extra"):
-            log_data.update(record.extra) 
+            log_data.update(record.extra)
 
         # Add exception info if present
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
 
         return json.dumps(log_data)
-
 
 
 def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
@@ -47,6 +47,7 @@ def setup_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger.addHandler(handler)
 
     return logger
+
 
 class CorrelationIdFilter(logging.Filter):
     """Filter to add correlation_id to log records"""

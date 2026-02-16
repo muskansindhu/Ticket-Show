@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from shared.utils import setup_logger
 from .config import settings
 from .database import Base, engine
+from .kafka_handler import close_kafka_producer, init_kafka_producer
 from .routes import router
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
@@ -21,19 +22,24 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    # Initialize Kafka producer
+    await init_kafka_producer()
+
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 
     yield
 
     # Shutdown
     logger.info(f"{settings.SERVICE_NAME} shutting down...")
+    await close_kafka_producer()
     await engine.dispose()
     logger.info(f"{settings.SERVICE_NAME} shut down successfully")
 
 
+# Create FastAPI app
 app = FastAPI(
-    title="Auth Service",
-    description="Authentication and authorization service for Ticket Show",
+    title="Payment Service",
+    description="Payment processing service for Ticket Show",
     version="1.0.0",
     lifespan=lifespan,
 )

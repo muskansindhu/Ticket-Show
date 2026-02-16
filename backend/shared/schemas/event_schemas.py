@@ -1,12 +1,14 @@
-from pydantic import BaseModel, Field, validator
-from typing import Optional
 from datetime import datetime, time
+from typing import Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 # Show Schemas
 class ShowCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     duration_minutes: int = Field(..., gt=0)
+    price: int = Field(..., gt=0)
     description: str = Field(..., min_length=32)
     language: Optional[str] = Field(None, max_length=50)
     rating: Optional[str] = Field(None, max_length=10)
@@ -16,6 +18,7 @@ class ShowResponse(BaseModel):
     id: int
     title: str
     duration_minutes: int
+    price: int
     description: str
     language: Optional[str]
     rating: Optional[str]
@@ -32,10 +35,10 @@ class VenueCreate(BaseModel):
     opening_time: time
     closing_time: time
     
-    @validator('closing_time')
+    @validator("closing_time")
     def validate_closing_time(cls, v, values):
-        if 'opening_time' in values and v <= values['opening_time']:
-            raise ValueError('closing_time must be after opening_time')
+        if "opening_time" in values and v <= values["opening_time"]:
+            raise ValueError("closing_time must be after opening_time")
         return v
 
 
@@ -75,10 +78,10 @@ class ScheduleCreate(BaseModel):
     screen_id: int
     start_time: datetime
     
-    @validator('start_time')
+    @validator("start_time")
     def validate_start_time(cls, v):
         if v < datetime.utcnow():
-            raise ValueError('start_time cannot be in the past')
+            raise ValueError("start_time cannot be in the past")
         return v
 
 

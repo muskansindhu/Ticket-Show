@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
-from sqlalchemy.sql import func
 import enum
+from sqlalchemy import Column, DateTime, Enum as SQLEnum, Integer, String
+from sqlalchemy.sql import func
+
 from .database import Base
 
 
@@ -13,7 +14,7 @@ class UserRole(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = {"schema": "auth"}
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)

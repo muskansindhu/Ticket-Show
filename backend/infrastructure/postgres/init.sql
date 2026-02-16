@@ -23,12 +23,12 @@ CREATE INDEX idx_users_role ON auth.users(role);
 -- ==================== EVENTS SCHEMA ====================
 CREATE SCHEMA IF NOT EXISTS events;
 
--- Shows table
 CREATE TABLE IF NOT EXISTS events.shows (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
     duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
+    price INTEGER NOT NULL,
     language VARCHAR(50),
     rating VARCHAR(10),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -86,12 +86,59 @@ CREATE TABLE IF NOT EXISTS events.seats (
     screen_id INTEGER NOT NULL REFERENCES events.screens(id) ON DELETE CASCADE,
     seat_number VARCHAR(10) NOT NULL,
     row_number VARCHAR(5) NOT NULL,
+    locked_until TIMESTAMP WITH TIME ZONE NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(screen_id, seat_number)
 );
 
 CREATE INDEX idx_seats_screen ON events.seats(screen_id);
+
+-- ==================== BOOKINGS SCHEMA ====================
+CREATE SCHEMA IF NOT EXISTS bookings;
+
+CREATE TABLE IF NOT EXISTS bookings.bookings (
+    id SERIAL PRIMARY KEY,
+    idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    schedule_id INTEGER NOT NULL,
+    seat_ids INTEGER[] NOT NULL,
+    total_amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    correlation_id VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_bookings_user ON bookings.bookings(user_id);
+CREATE INDEX idx_bookings_event ON bookings.bookings(schedule_id);
+CREATE INDEX idx_bookings_status ON bookings.bookings(status);
+CREATE INDEX idx_bookings_idempotency ON bookings.bookings(idempotency_key);
+CREATE INDEX idx_bookings_correlation ON bookings.bookings(correlation_id);
+
+-- ==================== PAYMENTS SCHEMA ====================
+CREATE SCHEMA IF NOT EXISTS payments;
+
+CREATE TABLE IF NOT EXISTS payments.payments (
+    id SERIAL PRIMARY KEY,
+    idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+    booking_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    payment_method VARCHAR(20) NOT NULL,
+    transaction_id VARCHAR(255),
+    correlation_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_payments_booking ON payments.payments(booking_id);
+CREATE INDEX idx_payments_user ON payments.payments(user_id);
+CREATE INDEX idx_payments_status ON payments.payments(status);
+CREATE INDEX idx_payments_idempotency ON payments.payments(idempotency_key);
+
 
 
 
@@ -107,13 +154,12 @@ INSERT INTO auth.users (email, password_hash, username, role) VALUES
 ('user@ticketshow.com', '$2b$12$ij4.6bmZ7LoCuPRLl0z/pelxfBDBTAAK95MMHTYdtjzQWb.vYUxry', 'Regular User', 'USER')
 ON CONFLICT (email) DO NOTHING;
 
--- Insert sample shows
-INSERT INTO events.shows (title, description, duration_minutes, language, rating) VALUES
-('Inception', 'A skilled thief enters dreams to steal secrets.', 148, 'English', 'PG-13'),
-('The Dark Knight', 'Batman faces the Joker in Gotham City.', 152, 'English', 'PG-13'),
-('Interstellar', 'A team travels through a wormhole in space.', 169, 'English', 'PG-13'),
-('Dunkirk', 'Allied soldiers are evacuated during WWII.', 106, 'English', 'PG-13'),
-('Tenet', 'A secret agent manipulates time to prevent disaster.', 150, 'English', 'PG-13')
+INSERT INTO events.shows (title, description, duration_minutes, price, language, rating) VALUES
+('Inception', 'A skilled thief enters dreams to steal secrets.', 148, 350, 'English', 'PG-13'),
+('The Dark Knight', 'Batman faces the Joker in Gotham City.', 152, 400, 'English', 'PG-13'),
+('Interstellar', 'A team travels through a wormhole in space.', 169, 450, 'English', 'PG-13'),
+('Dunkirk', 'Allied soldiers are evacuated during WWII.', 106, 300, 'English', 'PG-13'),
+('Tenet', 'A secret agent manipulates time to prevent disaster.', 150, 375, 'English', 'PG-13')
 ON CONFLICT DO NOTHING;
 
 

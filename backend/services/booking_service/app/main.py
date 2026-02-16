@@ -31,9 +31,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"{settings.SERVICE_NAME} shut down successfully")
 
 
+# Create FastAPI app
 app = FastAPI(
-    title="Auth Service",
-    description="Authentication and authorization service for Ticket Show",
+    title="Booking Service",
+    description="Seat booking service with row-level locking for Ticket Show",
     version="1.0.0",
     lifespan=lifespan,
 )
