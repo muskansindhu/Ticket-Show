@@ -99,13 +99,28 @@ async def create_show(
 async def get_shows(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/shows/",
         params={"skip": skip, "limit": limit},
-        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=10.0,
+    )
+
+
+@shows_router.get("", response_model=List[ShowResponse], include_in_schema=False)
+async def get_shows_no_slash(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+):
+    return await get_shows(skip=skip, limit=limit)
+
+
+@shows_router.get("/{show_id}/venues", response_model=List[VenueResponse])
+async def get_show_venues(show_id: int):
+    return await proxy_request(
+        "GET",
+        f"{settings.EVENT_SERVICE_URL}/shows/{show_id}/venues",
         timeout=10.0,
     )
 
@@ -140,6 +155,14 @@ async def get_venues(
     )
 
 
+@venues_router.get("", response_model=List[VenueResponse], include_in_schema=False)
+async def get_venues_no_slash(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+):
+    return await get_venues(skip=skip, limit=limit)
+
+
 # ==================== SCREENS ROUTES ====================
 
 @screens_router.post("/", response_model=ScreenResponse, status_code=status.HTTP_201_CREATED)
@@ -170,6 +193,14 @@ async def get_screens(
     )
 
 
+@screens_router.get("", response_model=List[ScreenResponse], include_in_schema=False)
+async def get_screens_no_slash(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+):
+    return await get_screens(skip=skip, limit=limit)
+
+
 # ==================== SCHEDULES ROUTES ====================
 
 @schedules_router.post("/", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED)
@@ -192,12 +223,15 @@ async def get_venue_schedules(
     venue_id: int,
     from_date: str = Query(None),
     to_date: str = Query(None),
+    show_id: int = Query(None),
 ):
     params = {}
     if from_date:
         params["from_date"] = from_date
     if to_date:
         params["to_date"] = to_date
+    if show_id:
+        params["show_id"] = show_id
 
     return await proxy_request(
         "GET",
@@ -248,6 +282,19 @@ async def get_booking(
     return await proxy_request(
         "GET",
         f"{settings.BOOKING_SERVICE_URL}/bookings/{booking_id}",
+        params={"user_id": current_user["user_id"]},
+        timeout=10.0,
+    )
+
+
+@bookings_router.get("/schedule/{schedule_id}/seats")
+async def get_schedule_seats(
+    schedule_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    return await proxy_request(
+        "GET",
+        f"{settings.BOOKING_SERVICE_URL}/bookings/schedule/{schedule_id}/seats",
         params={"user_id": current_user["user_id"]},
         timeout=10.0,
     )

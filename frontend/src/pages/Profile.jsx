@@ -1,0 +1,198 @@
+import { useEffect, useState } from "react";
+import { apiRequest, formatCurrency } from "../apiClient.js";
+import Icon from "../components/Icon.jsx";
+import { formatTime12Hour } from "../utils/time.js";
+
+function formatDateLabel(value) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function formatDateTimeLabel(value) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return `${formatDateLabel(date)} · ${formatTime12Hour(value)}`;
+}
+
+function isNotFoundError(err) {
+  const message = String(err?.message || "").toLowerCase();
+  return message.includes("not found") || message.includes("404");
+}
+
+export default function Profile() {
+  const [bookings, setBookings] = useState([]);
+  const [expandedBookingId, setExpandedBookingId] = useState(null);
+  const [detailsByBookingId, setDetailsByBookingId] = useState({});
+  const [loadingDetailsId, setLoadingDetailsId] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await apiRequest("/bookings");
+        setBookings(data);
+      } catch (err) {
+        setError(err.message);
+      }
+    }
+    load();
+  }, []);
+
+  async function loadBookingDetails(bookingId) {
+    if (!bookingId || detailsByBookingId[bookingId]) return;
+    setLoadingDetailsId(bookingId);
+    try {
+      const [bookingResult, paymentResult] = await Promise.allSettled([
+        apiRequest(`/bookings/${bookingId}`),
+        apiRequest(`/payments/booking/${bookingId}`)
+      ]);
+
+      const nextDetail = {};
+      if (bookingResult.status === "fulfilled") {
+        nextDetail.booking = bookingResult.value;
+      } else {
+        nextDetail.bookingError = bookingResult.reason?.message || "Unable to load booking details.";
+      }
+
+      if (paymentResult.status === "fulfilled") {
+        nextDetail.payment = paymentResult.value;
+      } else if (!isNotFoundError(paymentResult.reason)) {
+        nextDetail.paymentError = paymentResult.reason?.message || "Unable to load payment details.";
+      }
+
+      setDetailsByBookingId((prev) => ({
+        ...prev,
+        [bookingId]: nextDetail
+      }));
+    } finally {
+      setLoadingDetailsId((current) => (current === bookingId ? null : current));
+    }
+  }
+
+  function handleToggleDetails(bookingId) {
+    setExpandedBookingId((current) => (current === bookingId ? null : bookingId));
+    if (!detailsByBookingId[bookingId]) {
+      loadBookingDetails(bookingId);
+    }
+  }
+
+  return (
+    <section className="page">
+      <div className="page-header">
+        <div>
+          <p className="eyebrow"><Icon name="profile" size={14} /> Profile</p>
+          <h2>My bookings</h2>
+          <p className="muted">Your booking history and status.</p>
+        </div>
+      </div>
+      {error ? <p className="notice">{error}</p> : null}
+      <div className="list-stack booking-list">
+        {bookings.length === 0 ? <p className="muted">No bookings yet.</p> : null}
+        {bookings.map((booking, index) => {
+          const statusClass = `status-pill ${String(booking.status || "pending").toLowerCase()}`;
+          const isExpanded = expandedBookingId === booking.id;
+          const detail = detailsByBookingId[booking.id];
+          const bookingDetail = detail?.booking || booking;
+          const paymentDetail = detail?.payment || null;
+          const seatIds = Array.isArray(bookingDetail.seat_ids) ? bookingDetail.seat_ids : [];
+          const isLoadingDetails = loadingDetailsId === booking.id;
+
+          return (
+            <article
+              className={`booking-card booking-record reveal ${isExpanded ? "expanded" : ""}`}
+              style={{ "--delay": `${index * 0.05}s` }}
+              key={booking.id}
+            >
+              <button
+                className="booking-summary-btn"
+                type="button"
+                onClick={() => handleToggleDetails(booking.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`booking-details-${booking.id}`}
+              >
+                <div className="booking-header">
+                  <div className="booking-title">
+                    <Icon name="ticket" size={16} />
+                    <h4>Booking #{booking.id}</h4>
+                  </div>
+                  <span className={statusClass}>{booking.status || "PENDING"}</span>
+                </div>
+                <div className="booking-meta booking-summary-meta">
+                  <span className="icon-inline"><Icon name="calendar" size={14} /> Schedule {booking.schedule_id}</span>
+                  <span className="icon-inline"><Icon name="seat" size={14} /> {seatIds.length} seat{seatIds.length === 1 ? "" : "s"}</span>
+                  <span className="icon-inline"><Icon name="credit" size={14} /> {formatCurrency(booking.total_amount)}</span>
+                </div>
+                <p className="muted booking-summary-hint">
+                  {isExpanded ? "Hide booking details" : "View booking details"}
+                </p>
+              </button>
+
+              {isExpanded ? (
+                <div className="booking-details" id={`booking-details-${booking.id}`}>
+                  {isLoadingDetails ? <p className="muted">Loading booking details...</p> : null}
+                  {detail?.bookingError ? <p className="notice">{detail.bookingError}</p> : null}
+
+                  <div className="booking-detail-grid">
+                    <div className="booking-detail-item">
+                      <span className="section-title">Booking ID</span>
+                      <strong>#{bookingDetail.id ?? booking.id}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Schedule ID</span>
+                      <strong>{bookingDetail.schedule_id ?? booking.schedule_id ?? "--"}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Amount</span>
+                      <strong>{formatCurrency((bookingDetail.total_amount ?? booking.total_amount) ?? 0)}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Booked On</span>
+                      <strong>{formatDateTimeLabel(bookingDetail.created_at)}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Hold Expires</span>
+                      <strong>{formatDateTimeLabel(bookingDetail.expires_at)}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Seat IDs</span>
+                      <strong>{seatIds.length > 0 ? seatIds.join(", ") : "--"}</strong>
+                    </div>
+                    <div className="booking-detail-item">
+                      <span className="section-title">Correlation ID</span>
+                      <strong className="mono">{bookingDetail.correlation_id || "--"}</strong>
+                    </div>
+                  </div>
+
+                  <div className="booking-payment-block">
+                    <p className="section-title">Payment</p>
+                    {paymentDetail ? (
+                      <div className="booking-payment-grid">
+                        <span className="icon-inline"><Icon name="wallet" size={13} /> {paymentDetail.payment_method || "--"}</span>
+                        <span className="icon-inline"><Icon name="credit" size={13} /> {formatCurrency(paymentDetail.amount)}</span>
+                        <span className={`status-pill ${String(paymentDetail.status || "pending").toLowerCase()}`}>
+                          {paymentDetail.status || "PENDING"}
+                        </span>
+                        <span className="muted">Txn: {paymentDetail.transaction_id || "--"}</span>
+                      </div>
+                    ) : detail?.paymentError ? (
+                      <p className="notice">{detail.paymentError}</p>
+                    ) : (
+                      <p className="muted">Payment not completed yet.</p>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}

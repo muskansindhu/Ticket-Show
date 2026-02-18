@@ -91,6 +91,31 @@ async def get_shows(
         )
 
 
+@shows_router.get("/{show_id}/venues", response_model=List[VenueResponse])
+async def get_show_venues(
+    show_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get venues that are showing a given show (PUBLIC)"""
+    try:
+        result = await db.execute(
+            select(Venue)
+            .join(Screen, Screen.venue_id == Venue.id)
+            .join(Schedule, Schedule.screen_id == Screen.id)
+            .where(Schedule.show_id == show_id)
+            .distinct(Venue.id)
+        )
+        venues = result.scalars().all()
+        return venues
+
+    except Exception as e:
+        logger.error(f"Error fetching show venues: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch venues for show",
+        )
+
+
 # ==================== VENUES (ADMIN ONLY) ====================
 
 @venues_router.post("/", response_model=VenueResponse, status_code=status.HTTP_201_CREATED)
@@ -143,6 +168,15 @@ async def get_venues(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch venues",
         )
+
+
+@venues_router.get("", response_model=List[VenueResponse], include_in_schema=False)
+async def get_venues_no_slash(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    return await get_venues(skip=skip, limit=limit, db=db)
 
 
 # ==================== SCREENS (ADMIN ONLY) ====================
@@ -347,6 +381,7 @@ async def get_venue_schedules(
     venue_id: int,
     from_date: datetime = Query(None),
     to_date: datetime = Query(None),
+    show_id: int = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all schedules for a venue (PUBLIC)"""
@@ -374,6 +409,8 @@ async def get_venue_schedules(
             query = query.where(Schedule.start_time >= from_date)
         if to_date:
             query = query.where(Schedule.start_time <= to_date)
+        if show_id:
+            query = query.where(Schedule.show_id == show_id)
 
         query = query.order_by(Schedule.start_time)
 

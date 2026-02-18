@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Service
     SERVICE_NAME: str = "api-gateway"
     LOG_LEVEL: str = "INFO"
+    FRONTEND_URL: str = "http://localhost:5173"
 
 
 settings = Settings()

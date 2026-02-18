@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 from typing import List
 
@@ -23,7 +23,7 @@ async def lock_seats(
 ):
     """Lock seats for a screen using SELECT FOR UPDATE with row-level locking"""
     try:
-        lock_until = datetime.utcnow() + timedelta(minutes=lock_duration_minutes)
+        lock_until = datetime.now(timezone.utc) + timedelta(minutes=lock_duration_minutes)
         query = text(
             """
             UPDATE events.seats
@@ -162,7 +162,7 @@ async def create_booking(
 
 @router.get("/", response_model=List[BookingResponse])
 async def get_user_bookings(
-    user_id: int,  # This would come from JWT token in production
+    user_id: int, 
     db: AsyncSession = Depends(get_db),
 ):
     """Get all bookings for a user"""
@@ -185,7 +185,7 @@ async def get_user_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking(
     booking_id: int,
-    user_id: int,  # This would come from JWT token in production
+    user_id: int,  
     db: AsyncSession = Depends(get_db),
 ):
     """Get booking by ID"""
@@ -215,10 +215,87 @@ async def get_booking(
         )
 
 
+@router.get("/schedule/{schedule_id}/seats")
+async def get_schedule_seats(
+    schedule_id: int,
+    user_id: int | None = None,  
+    db: AsyncSession = Depends(get_db),
+):
+    """Get seat availability for a schedule"""
+    try:
+        schedule_query = text(
+            "SELECT screen_id FROM events.schedules WHERE id = :schedule_id"
+        )
+        schedule_result = await db.execute(schedule_query, {"schedule_id": schedule_id})
+        schedule_row = schedule_result.fetchone()
+        if not schedule_row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Schedule not found",
+            )
+        screen_id = schedule_row[0]
+
+        seats_query = text(
+            """
+            SELECT id, seat_number, row_number, locked_until
+            FROM events.seats
+            WHERE screen_id = :screen_id
+            ORDER BY id
+            """
+        )
+        seats_result = await db.execute(seats_query, {"screen_id": screen_id})
+        seats = seats_result.fetchall()
+
+        booked_query = text(
+            """
+            SELECT seat_ids
+            FROM bookings.bookings
+            WHERE schedule_id = :schedule_id
+              AND status = :status
+            """
+        )
+        booked_result = await db.execute(
+            booked_query,
+            {"schedule_id": schedule_id, "status": BookingStatus.CONFIRMED.value},
+        )
+        booked_ids = set()
+        for row in booked_result.fetchall():
+            booked_ids.update(row[0] or [])
+
+        now = datetime.now(timezone.utc)
+        response = []
+        for row in seats:
+            locked_until = row.locked_until
+            if locked_until and locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+            locked = locked_until is not None and locked_until >= now
+            booked = row.id in booked_ids
+            response.append(
+                {
+                    "id": row.id,
+                    "seat_number": row.seat_number,
+                    "row_number": row.row_number,
+                    "is_available": not locked and not booked,
+                    "is_locked": locked,
+                    "is_booked": booked,
+                }
+            )
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching seats: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch seats",
+        )
+
+
 @router.delete("/{booking_id}")
 async def cancel_booking(
     booking_id: int,
-    user_id: int,  # This would come from JWT token in production
+    user_id: int,  
     db: AsyncSession = Depends(get_db),
 ):
     """Cancel a booking and release seats"""

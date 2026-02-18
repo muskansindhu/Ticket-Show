@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from .config import settings
 from .routes import (
@@ -53,3 +54,13 @@ async def root():
         "status": "running",
         "description": "Ticket Show API Gateway - Your gateway to amazing events!",
     }
+
+
+@app.get("/{path:path}")
+async def spa_fallback(path: str, request: Request):
+    """Redirect browser requests to the frontend dev server when present."""
+    accept = request.headers.get("accept", "")
+    if settings.FRONTEND_URL and "text/html" in accept:
+        target = f"{settings.FRONTEND_URL.rstrip('/')}/{path}"
+        return RedirectResponse(target)
+    return JSONResponse({"detail": "Not Found"}, status_code=404)

@@ -82,17 +82,14 @@ async def handle_booking_successful(message: dict):
             f"""
             Hi there,
 
-            Great news — your booking is confirmed! We’re excited to see you at the show.
+            Awesome news — your booking went through and you’re all set. We can’t wait to see you at the show.
+            For your records, your booking ID is {event.booking_id} and the schedule ID is {event.schedule_id}.
+            You grabbed {len(event.seat_ids)} seat(s) and the total comes to ${event.total_amount}.
 
-            Booking ID: {event.booking_id}
-            Schedule ID: {event.schedule_id}
-            Seats: {len(event.seat_ids)}
-            Total Paid: ${event.total_amount}
+            If anything looks off or you have a quick question, just hit reply and we’ll jump in.
 
-            If you have any questions, just reply to this email and we’ll help out.
-
-            Thanks for choosing Ticket Show,
-            The Ticket Show Team
+            Thanks again for choosing TicketShow,
+            The TicketShow Team
             """
         ).strip()
 
@@ -138,15 +135,13 @@ async def handle_booking_failed(message: dict):
             f"""
             Hi there,
 
-            Sorry — we couldn’t complete your booking this time.
+            We hit a snag and couldn’t complete your booking this time — sorry about that.
+            For reference, your booking ID is {event.booking_id}. The reason we saw was: {event.reason}.
 
-            Booking ID: {event.booking_id}
-            Reason: {event.reason}
-
-            Please try again, and if this keeps happening just reply to this email so we can help.
+            If you want to try again, go for it. And if it keeps happening, just reply here and we’ll sort it out with you.
 
             Thanks for your patience,
-            The Ticket Show Team
+            The TicketShow Team
             """
         ).strip()
 
