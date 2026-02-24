@@ -13,6 +13,7 @@ class Show(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="ACTIVE", index=True)
     description = Column(Text, nullable=False)
     duration_minutes = Column(Integer, nullable=False)
     price = Column(Integer, nullable=False)
@@ -32,6 +33,7 @@ class Venue(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, default="ACTIVE", index=True)
     location = Column(String(500), nullable=False)
     opening_time = Column(Time, nullable=False)
     closing_time = Column(Time, nullable=False)

@@ -39,7 +39,10 @@ export default function AuthPage() {
     const ok = await register(registerForm);
     if (ok) {
       setNotice("Account created. Please sign in.");
-      setLoginForm({ email: registerForm.email, password: registerForm.password });
+      setLoginForm({
+        email: registerForm.email,
+        password: registerForm.password,
+      });
       setRegisterForm(initialRegister);
       setMode("login");
     }
@@ -60,7 +63,9 @@ export default function AuthPage() {
 
         <div className="auth-card reveal" style={{ "--delay": "0.12s" }}>
           <div className="auth-header">
-            <p className="eyebrow"><Icon name="ticket" size={14} /> Access pass</p>
+            <p className="eyebrow">
+              <Icon name="ticket" size={14} /> Access pass
+            </p>
             <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
             <p className="muted">
               No guest mode. Sign in to explore schedules, seats, and bookings.
@@ -76,7 +81,7 @@ export default function AuthPage() {
                 setMode("login");
               }}
             >
-              <Icon name="user" size={14} /> Login
+              Login
             </button>
             <button
               className={mode === "register" ? "tab active" : "tab"}
@@ -86,7 +91,7 @@ export default function AuthPage() {
                 setMode("register");
               }}
             >
-              <Icon name="spark" size={14} /> Register
+              Register
             </button>
           </div>
 
@@ -114,7 +119,10 @@ export default function AuthPage() {
                     type={showLoginPass ? "text" : "password"}
                     value={loginForm.password}
                     onChange={(event) =>
-                      setLoginForm({ ...loginForm, password: event.target.value })
+                      setLoginForm({
+                        ...loginForm,
+                        password: event.target.value,
+                      })
                     }
                     required
                   />
@@ -122,14 +130,15 @@ export default function AuthPage() {
                     className="icon-btn"
                     type="button"
                     onClick={() => setShowLoginPass((prev) => !prev)}
-                    aria-label={showLoginPass ? "Hide password" : "Show password"}
+                    aria-label={
+                      showLoginPass ? "Hide password" : "Show password"
+                    }
                   >
                     <Icon name={showLoginPass ? "eyeOff" : "eye"} size={16} />
                   </button>
                 </div>
               </label>
               <button className="primary" type="submit" disabled={loading}>
-                <Icon name="ticket" size={16} />
                 {loading ? "Signing in..." : "Sign in"}
               </button>
             </form>
@@ -143,7 +152,10 @@ export default function AuthPage() {
                     type="email"
                     value={registerForm.email}
                     onChange={(event) =>
-                      setRegisterForm({ ...registerForm, email: event.target.value })
+                      setRegisterForm({
+                        ...registerForm,
+                        email: event.target.value,
+                      })
                     }
                     required
                   />
@@ -156,7 +168,10 @@ export default function AuthPage() {
                   <input
                     value={registerForm.username}
                     onChange={(event) =>
-                      setRegisterForm({ ...registerForm, username: event.target.value })
+                      setRegisterForm({
+                        ...registerForm,
+                        username: event.target.value,
+                      })
                     }
                     required
                   />
@@ -170,7 +185,10 @@ export default function AuthPage() {
                     type={showRegisterPass ? "text" : "password"}
                     value={registerForm.password}
                     onChange={(event) =>
-                      setRegisterForm({ ...registerForm, password: event.target.value })
+                      setRegisterForm({
+                        ...registerForm,
+                        password: event.target.value,
+                      })
                     }
                     required
                   />
@@ -178,22 +196,24 @@ export default function AuthPage() {
                     className="icon-btn"
                     type="button"
                     onClick={() => setShowRegisterPass((prev) => !prev)}
-                    aria-label={showRegisterPass ? "Hide password" : "Show password"}
+                    aria-label={
+                      showRegisterPass ? "Hide password" : "Show password"
+                    }
                   >
-                    <Icon name={showRegisterPass ? "eyeOff" : "eye"} size={16} />
+                    <Icon
+                      name={showRegisterPass ? "eyeOff" : "eye"}
+                      size={16}
+                    />
                   </button>
                 </div>
               </label>
               <button className="primary" type="submit" disabled={loading}>
-                <Icon name="spark" size={16} />
                 {loading ? "Creating..." : "Create account"}
               </button>
             </form>
           )}
 
-          {(notice || error) && (
-            <div className="notice">{notice || error}</div>
-          )}
+          {(notice || error) && <div className="notice">{notice || error}</div>}
         </div>
       </div>
 
@@ -201,19 +221,35 @@ export default function AuthPage() {
         <div className="auth-copy reveal" style={{ "--delay": "0.15s" }}>
           <h2>Own your night.</h2>
           <p>
-            Pick seats with confidence, track availability, and confirm payments in seconds.
+            Pick seats with confidence, track availability, and confirm payments
+            in seconds.
           </p>
           <div className="auth-inline-points">
-            <span className="auth-inline-item"><Icon name="seat" size={14} /> Seat map</span>
-            <span className="auth-sep" aria-hidden="true">|</span>
-            <span className="auth-inline-item"><Icon name="calendar" size={14} /> Smart schedules</span>
-            <span className="auth-sep" aria-hidden="true">|</span>
-            <span className="auth-inline-item"><Icon name="credit" size={14} /> Fast checkout</span>
+            <span className="auth-inline-item">
+              <Icon name="seat" size={14} /> Seat map
+            </span>
+            <span className="auth-sep" aria-hidden="true">
+              |
+            </span>
+            <span className="auth-inline-item">
+              <Icon name="calendar" size={14} /> Smart schedules
+            </span>
+            <span className="auth-sep" aria-hidden="true">
+              |
+            </span>
+            <span className="auth-inline-item">
+              <Icon name="credit" size={14} /> Fast checkout
+            </span>
           </div>
         </div>
         <div className="poster-stack reveal" style={{ "--delay": "0.22s" }}>
           {posters.map((src, index) => (
-            <img key={src} className={`poster p${index + 1}`} src={src} alt="Poster" />
+            <img
+              key={src}
+              className={`poster p${index + 1}`}
+              src={src}
+              alt="Poster"
+            />
           ))}
         </div>
       </div>

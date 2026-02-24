@@ -7,7 +7,9 @@ import ShowDetail from "./pages/ShowDetail.jsx";
 import Seats from "./pages/Seats.jsx";
 import Payment from "./pages/Payment.jsx";
 import Profile from "./pages/Profile.jsx";
+import Bookings from "./pages/Bookings.jsx";
 import Venues from "./pages/Venues.jsx";
+import Transactions from "./pages/Transactions.jsx";
 import Admin from "./pages/Admin.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import { useAuth } from "./context/auth.jsx";
@@ -33,9 +35,9 @@ export default function App() {
   const isAdmin = user?.role === "ADMIN";
   const navItems = isAdmin
     ? [
-        { to: "/", label: "Dashboard", end: true, icon: "dashboard" },
-        { to: "/admin", label: "Admin", icon: "admin" }
-      ]
+      { to: "/", label: "Dashboard", end: true, icon: "dashboard" },
+      { to: "/admin", label: "Admin", icon: "admin" }
+    ]
     : [{ to: "/", label: "Dashboard", end: true, icon: "dashboard" }];
 
   return (
@@ -51,6 +53,8 @@ export default function App() {
         <Route path="seats/:scheduleId" element={<Seats />} />
         <Route path="payment" element={<Payment />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="bookings" element={<Bookings />} />
+        <Route path="transactions" element={<Transactions />} />
         <Route path="auth" element={<Navigate to="/" replace />} />
         <Route
           path="admin"

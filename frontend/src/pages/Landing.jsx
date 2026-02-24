@@ -15,51 +15,51 @@ const heroColumns = [
   [
     { title: "War of the Gods", src: poster1 },
     { title: "Interstellar", src: poster2 },
-    { title: "The Hobbit", src: poster3 }
+    { title: "The Hobbit", src: poster3 },
   ],
   [
     { title: "Arcane Forest", src: poster4 },
     { title: "Neon Streets", src: poster5 },
-    { title: "Silent Moon", src: poster6 }
+    { title: "Silent Moon", src: poster6 },
   ],
   [
     { title: "Frost Gate", src: poster7 },
     { title: "Shadow City", src: poster8 },
-    { title: "Last Orbit", src: poster9 }
-  ]
+    { title: "Last Orbit", src: poster9 },
+  ],
 ];
 
 const highlights = [
   {
     icon: "seat",
-    title: "Live Seat Locking"
+    title: "Live Seat Locking",
   },
   {
     icon: "calendar",
-    title: "Fast Show Discovery"
+    title: "Fast Show Discovery",
   },
   {
     icon: "credit",
-    title: "Clear Checkout"
-  }
+    title: "Clear Checkout",
+  },
 ];
 
 const steps = [
   {
     id: "01",
     title: "Pick a show",
-    sub: "Browse available titles and timings."
+    sub: "Browse available titles and timings.",
   },
   {
     id: "02",
     title: "Lock your seats",
-    sub: "Choose seats while they stay reserved."
+    sub: "Choose seats while they stay reserved.",
   },
   {
     id: "03",
     title: "Pay and confirm",
-    sub: "Finish checkout and get instant confirmation."
-  }
+    sub: "Finish checkout and get instant confirmation.",
+  },
 ];
 
 export default function Landing() {
@@ -75,42 +75,42 @@ export default function Landing() {
             <div className="brand-badge">TS</div>
             <div>
               <p className="brand-title">Ticket Show</p>
-              <p className="brand-sub">Modern booking platform</p>
+              <p className="brand-sub">Premium ticketing</p>
             </div>
-          </div>
-          <div className="landing-actions">
-            {!isLoggedIn ? (
-              <>
-                <Link className="ghost" to="/auth"><Icon name="user" size={14} /> Login</Link>
-                <Link className="primary" to="/auth"><Icon name="spark" size={14} /> Create account</Link>
-              </>
-            ) : null}
           </div>
         </header>
 
         <section className="apple-hero reveal" style={{ "--delay": "0.1s" }}>
           <div className="apple-copy">
-            <p className="eyebrow"><Icon name="spark" size={14} /> Black + Neon Experience</p>
-            <h1>Book tickets with a cleaner, calmer flow.</h1>
+            <h1>Book tickets with a faster, seamless flow.</h1>
             <p className="lead">
               Live availability, smooth seat selection, and fast checkout.
             </p>
             <div className="apple-actions">
               {isLoggedIn ? (
                 <>
-                  <Link className="primary" to="/"><Icon name="ticket" size={16} /> Explore movies now</Link>
-                  <Link className="ghost" to="/venues"><Icon name="location" size={14} /> Browse by venue</Link>
+                  <Link className="primary" to="/">
+                    Explore movies now
+                  </Link>
+                  <Link className="ghost" to="/venues">
+                    Browse by venue
+                  </Link>
                 </>
               ) : (
                 <>
-                  <Link className="primary" to="/auth"><Icon name="ticket" size={16} /> Get started</Link>
-                  <Link className="ghost" to="/auth"><Icon name="arrowRight" size={14} /> Explore dashboard</Link>
+                  <Link className="primary" to="/auth">
+                    Explore movies now
+                  </Link>
                 </>
               )}
             </div>
             <div className="apple-metrics">
-              <span className="meta-chip"><Icon name="film" size={12} /> 200+ shows</span>
-              <span className="meta-chip"><Icon name="location" size={12} /> 64 venues</span>
+              <span className="meta-chip">
+                <Icon name="film" size={12} /> 200+ shows
+              </span>
+              <span className="meta-chip">
+                <Icon name="location" size={12} /> 64 venues
+              </span>
             </div>
           </div>
 
@@ -119,10 +119,20 @@ export default function Landing() {
               {heroColumns.map((column, columnIndex) => {
                 const looped = [...column, ...column];
                 return (
-                  <div className={`apple-reel-column c${columnIndex + 1}`} key={`column-${columnIndex}`}>
+                  <div
+                    className={`apple-reel-column c${columnIndex + 1}`}
+                    key={`column-${columnIndex}`}
+                  >
                     {looped.map((poster, posterIndex) => (
-                      <article className="apple-reel-card" key={`${poster.title}-${posterIndex}`}>
-                        <img src={poster.src} alt={poster.title} loading="lazy" />
+                      <article
+                        className="apple-reel-card"
+                        key={`${poster.title}-${posterIndex}`}
+                      >
+                        <img
+                          src={poster.src}
+                          alt={poster.title}
+                          loading="lazy"
+                        />
                         <div className="apple-reel-info">{poster.title}</div>
                       </article>
                     ))}
@@ -133,17 +143,24 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="apple-feature-row reveal" style={{ "--delay": "0.16s" }}>
+        <section
+          className="apple-feature-row reveal"
+          style={{ "--delay": "0.16s" }}
+        >
           {highlights.map((item) => (
             <article className="apple-feature" key={item.title}>
-              <p className="eyebrow"><Icon name={item.icon} size={13} /> {item.title}</p>
+              <p className="eyebrow">
+                <Icon name={item.icon} size={13} /> {item.title}
+              </p>
             </article>
           ))}
         </section>
 
         <section className="apple-steps reveal" style={{ "--delay": "0.2s" }}>
           <div className="section-head">
-            <p className="eyebrow"><Icon name="calendar" size={13} /> How It Works</p>
+            <p className="eyebrow">
+              <Icon name="calendar" size={13} /> How It Works
+            </p>
             <h2>Three quick steps.</h2>
           </div>
           <div className="apple-step-grid">

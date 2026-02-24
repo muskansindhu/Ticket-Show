@@ -20,6 +20,31 @@ function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function toDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildDateRow(days = 7) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + index);
+    return {
+      key: toDateKey(date),
+      weekday: date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
+      day: date.toLocaleDateString("en-US", { day: "2-digit" }),
+      month: date.toLocaleDateString("en-US", { month: "short" }).toUpperCase()
+    };
+  });
+}
+
 async function fetchAllVenues() {
   let skip = 0;
   const result = [];
@@ -48,10 +73,11 @@ export default function Venues() {
   const [shows, setShows] = useState([]);
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [venueSchedules, setVenueSchedules] = useState([]);
-  const [query, setQuery] = useState("");
   const [loadingVenues, setLoadingVenues] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(new Date()));
   const [error, setError] = useState("");
+  const dateRow = buildDateRow(7);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +110,13 @@ export default function Venues() {
 
   const groupedMovies = useMemo(() => {
     const map = new Map();
-    venueSchedules.forEach((schedule) => {
+
+    // Filter schedules by the selected date first
+    const filteredSchedules = venueSchedules.filter(
+      (schedule) => toDateKey(schedule.start_time) === selectedDateKey
+    );
+
+    filteredSchedules.forEach((schedule) => {
       const key = `${normalize(schedule.show_title)}::${schedule.show_duration}`;
       if (!map.has(key)) {
         map.set(key, {
@@ -104,16 +136,7 @@ export default function Venues() {
           .sort((first, second) => new Date(first.start_time) - new Date(second.start_time))
       }))
       .sort((first, second) => first.title.localeCompare(second.title));
-  }, [venueSchedules]);
-
-  const filteredVenues = useMemo(() => {
-    const term = normalize(query);
-    if (!term) return venues;
-    return venues.filter(
-      (venue) =>
-        normalize(venue.name).includes(term) || normalize(venue.location).includes(term)
-    );
-  }, [venues, query]);
+  }, [venueSchedules, selectedDateKey]);
 
   function findShowBySchedule(schedule) {
     const exactMatch = shows.find(
@@ -160,24 +183,35 @@ export default function Venues() {
 
   return (
     <section className="page">
+      <div className="show-date-strip reveal" style={{ "--delay": "0.02s", marginBottom: "0.5rem" }}>
+        {dateRow.map((date) => {
+          const hasSchedules = venueSchedules.some(
+            (schedule) => toDateKey(schedule.start_time) === date.key
+          );
+
+          return (
+            <button
+              key={date.key}
+              type="button"
+              className={`show-date-chip${selectedDateKey === date.key ? " active" : ""
+                }${!hasSchedules && selectedVenue ? " muted-chip" : ""}`}
+              onClick={() => {
+                setSelectedDateKey(date.key);
+              }}
+            >
+              <span className="show-date-weekday">{date.weekday}</span>
+              <span className="show-date-day">{date.day}</span>
+              <span className="show-date-month">{date.month}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="page-header venue-browser-header">
         <div className="venue-browser-copy">
           <p className="eyebrow"><Icon name="location" size={14} /> Browse by venue</p>
           <h2>Choose A Venue</h2>
           <p className="muted">Tap a venue to load all movies and show schedules.</p>
-        </div>
-        <div className="venue-browser-tools">
-          <label className="venue-search" htmlFor="venue-search">
-            <Icon name="search" size={14} />
-            <input
-              id="venue-search"
-              type="search"
-              placeholder="Search by cinema or area"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <span className="meta-chip"><Icon name="ticket" size={12} /> {filteredVenues.length} venues</span>
         </div>
       </div>
 
@@ -186,7 +220,7 @@ export default function Venues() {
       {loadingVenues ? <p className="muted">Loading venues...</p> : null}
 
       <div className="grid-cards venue-browser-grid">
-        {filteredVenues.map((venue) => (
+        {venues.map((venue) => (
           <button
             className={`venue-card clickable venue-browser-card ${selectedVenue?.id === venue.id ? "active" : ""}`}
             key={venue.id}
@@ -206,12 +240,13 @@ export default function Venues() {
           </button>
         ))}
       </div>
-      {!loadingVenues && filteredVenues.length === 0 ? (
-        <p className="muted">No venues matched your search.</p>
+      {!loadingVenues && venues.length === 0 ? (
+        <p className="muted">No venues available right now.</p>
       ) : null}
 
       {selectedVenue ? (
         <section className="venue-results form-card">
+
           <div className="venue-results-head">
             <div className="venue-results-copy">
               <p className="eyebrow"><Icon name="film" size={13} /> Movies in {selectedVenue.name}</p>

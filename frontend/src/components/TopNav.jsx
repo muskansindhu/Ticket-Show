@@ -8,13 +8,16 @@ export default function TopNav({ items, variant = "user" }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const menuRef = useRef(null);
   const username =
     user?.username ||
     user?.name ||
     (typeof user?.email === "string" ? user.email.split("@")[0] : "") ||
     "user";
-  const isProfileRoute = location.pathname.startsWith("/profile");
+  const isProfileRoute =
+    location.pathname.startsWith("/profile") ||
+    location.pathname.startsWith("/bookings");
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -25,6 +28,10 @@ export default function TopNav({ items, variant = "user" }) {
 
     function handleEscape(event) {
       if (event.key === "Escape") {
+        if (logoutConfirmOpen) {
+          setLogoutConfirmOpen(false);
+          return;
+        }
         setMenuOpen(false);
       }
     }
@@ -35,10 +42,19 @@ export default function TopNav({ items, variant = "user" }) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, []);
+  }, [logoutConfirmOpen]);
 
   function handleLogout() {
     setMenuOpen(false);
+    setLogoutConfirmOpen(true);
+  }
+
+  function handleCancelLogout() {
+    setLogoutConfirmOpen(false);
+  }
+
+  function handleConfirmLogout() {
+    setLogoutConfirmOpen(false);
     logout();
     navigate("/");
   }
@@ -50,7 +66,11 @@ export default function TopNav({ items, variant = "user" }) {
 
   return (
     <header className={`topbar ${variant}`}>
-      <Link className="brand brand-link" to="/landing" aria-label="Go to landing page">
+      <Link
+        className="brand brand-link"
+        to="/landing"
+        aria-label="Go to landing page"
+      >
         <div className="brand-badge">TS</div>
         <div>
           <p className="brand-title">Ticket Show</p>
@@ -66,7 +86,9 @@ export default function TopNav({ items, variant = "user" }) {
               end={item.end}
               aria-label={item.label}
               title={item.label}
-              className={({ isActive }) => `nav-link icon-only${isActive ? " active" : ""}`}
+              className={({ isActive }) =>
+                `nav-link icon-only${isActive ? " active" : ""}`
+              }
             >
               <Icon name={item.icon} size={18} />
               <span className="sr-only">{item.label}</span>
@@ -88,16 +110,60 @@ export default function TopNav({ items, variant = "user" }) {
           {menuOpen ? (
             <div className="profile-menu" role="menu">
               <p className="profile-menu-name">{username}</p>
-              <button className="profile-menu-item" type="button" onClick={handleProfileOpen}>
+              <button
+                className="profile-menu-item"
+                type="button"
+                onClick={handleProfileOpen}
+              >
                 <Icon name="profile" size={14} /> Profile
               </button>
-              <button className="profile-menu-item" type="button" onClick={handleLogout}>
+              <button
+                className="profile-menu-item"
+                type="button"
+                onClick={handleLogout}
+              >
                 <Icon name="logout" size={14} /> Logout
               </button>
             </div>
           ) : null}
         </div>
       </div>
+      {logoutConfirmOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={handleCancelLogout}
+        >
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-confirm-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="logout-confirm-title">Logout from Ticket Show?</h3>
+            <p className="muted">
+              You will need to login again to continue booking tickets.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                className="ghost"
+                type="button"
+                onClick={handleCancelLogout}
+              >
+                Cancel
+              </button>
+              <button
+                className="primary danger-btn"
+                type="button"
+                onClick={handleConfirmLogout}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from shared.utils import setup_logger
 from .config import settings
 from .database import Base, engine
-from .kafka_handler import close_kafka_producer, init_kafka_producer
+from .kafka_handler import close_kafka_producer, init_kafka_producer, run_consumers
 from .routes import router
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
@@ -24,6 +24,7 @@ async def lifespan(app: FastAPI):
 
     # Initialize Kafka producer
     await init_kafka_producer()
+    run_consumers()
 
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 

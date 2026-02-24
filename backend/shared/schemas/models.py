@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 class BookingStatus(str, Enum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
     FAILED = "FAILED"
     EXPIRED = "EXPIRED"
 
@@ -16,6 +17,8 @@ class BookingStatus(str, Enum):
 class PaymentStatus(str, Enum):
     PENDING = "PENDING"
     COMPLETED = "COMPLETED"
+    REFUND_INITIATED = "REFUND_INITIATED"
+    REFUNDED = "REFUNDED"
     FAILED = "FAILED"
 
 
@@ -24,6 +27,11 @@ class PaymentMethod(str, Enum):
     UPI = "UPI"
     NETBANKING = "NETBANKING"
     WALLET = "WALLET"
+
+
+class WalletTransactionType(str, Enum):
+    REFUND = "REFUND"
+    DEBIT = "DEBIT"
 
 
 # User Schemas
@@ -42,6 +50,8 @@ class UserResponse(BaseModel):
     id: int
     email: str
     username: str
+    wallet_balance: Optional[float] = None
+    created_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -168,3 +178,37 @@ class PaymentCreate(BaseModel):
     payment_method: PaymentMethod
     user_id: int
     user_email: Optional[EmailStr] = None
+
+
+class RefundInitiatedEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    amount: float
+    correlation_id: str
+    reason: str
+    initiated_by: str
+    initiated_at: datetime
+    user_email: Optional[EmailStr] = None
+
+
+class WalletTransactionResponse(BaseModel):
+    id: int
+    user_id: int
+    amount: float
+    transaction_type: WalletTransactionType
+    description: str
+    reference_id: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WalletResponse(BaseModel):
+    user_id: int
+    current_amount: float
+    updated_at: datetime
+    transactions: List[WalletTransactionResponse] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True

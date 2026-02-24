@@ -20,12 +20,36 @@ CREATE TABLE IF NOT EXISTS auth.users (
 CREATE INDEX idx_users_email ON auth.users(email);
 CREATE INDEX idx_users_role ON auth.users(role);
 
+CREATE TABLE IF NOT EXISTS auth.wallets (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    current_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS auth.wallet_transactions (
+    id SERIAL PRIMARY KEY,
+    wallet_id INTEGER NOT NULL REFERENCES auth.wallets(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    amount DECIMAL(12, 2) NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('REFUND', 'DEBIT')),
+    description VARCHAR(500) NOT NULL,
+    reference_id VARCHAR(255) UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_wallets_user_id ON auth.wallets(user_id);
+CREATE INDEX idx_wallet_transactions_user_id ON auth.wallet_transactions(user_id);
+CREATE INDEX idx_wallet_transactions_ref ON auth.wallet_transactions(reference_id);
+
 -- ==================== EVENTS SCHEMA ====================
 CREATE SCHEMA IF NOT EXISTS events;
 
 CREATE TABLE IF NOT EXISTS events.shows (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'CANCELLED')),
     description TEXT NOT NULL,
     duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
     price INTEGER NOT NULL,
@@ -39,6 +63,7 @@ CREATE TABLE IF NOT EXISTS events.shows (
 CREATE TABLE IF NOT EXISTS events.venues (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
     location VARCHAR(500) NOT NULL,
     opening_time TIME NOT NULL,
     closing_time TIME NOT NULL,
@@ -154,20 +179,32 @@ INSERT INTO auth.users (email, password_hash, username, role) VALUES
 ('user@ticketshow.com', '$2b$12$ij4.6bmZ7LoCuPRLl0z/pelxfBDBTAAK95MMHTYdtjzQWb.vYUxry', 'Regular User', 'USER')
 ON CONFLICT (email) DO NOTHING;
 
-INSERT INTO events.shows (title, description, duration_minutes, price, language, rating) VALUES
-('Inception', 'A skilled thief enters dreams to steal secrets.', 148, 350, 'English', 'PG-13'),
-('The Dark Knight', 'Batman faces the Joker in Gotham City.', 152, 400, 'English', 'PG-13'),
-('Interstellar', 'A team travels through a wormhole in space.', 169, 450, 'English', 'PG-13'),
-('Dunkirk', 'Allied soldiers are evacuated during WWII.', 106, 300, 'English', 'PG-13'),
-('Tenet', 'A secret agent manipulates time to prevent disaster.', 150, 375, 'English', 'PG-13')
+INSERT INTO auth.wallets (user_id, current_amount)
+SELECT id, CASE WHEN email = 'user@ticketshow.com' THEN 5000.00 ELSE 0.00 END FROM auth.users
+ON CONFLICT (user_id) DO NOTHING;
+
+INSERT INTO auth.wallet_transactions (wallet_id, user_id, amount, transaction_type, description, reference_id)
+SELECT w.id, u.id, 5000.00, 'REFUND', 'Welcome bonus refund added to wallet', 'ref-welcome-bonus'
+FROM auth.users u JOIN auth.wallets w ON u.id = w.user_id
+WHERE u.email = 'user@ticketshow.com'
+ON CONFLICT (reference_id) DO NOTHING;
+
+INSERT INTO events.shows (title, description, duration_minutes, price, language, rating, status) VALUES
+('Inception', 'A skilled thief enters dreams to steal secrets.', 148, 350, 'English', 'PG-13', 'ACTIVE'),
+('The Dark Knight', 'Batman faces the Joker in Gotham City.', 152, 400, 'English', 'PG-13', 'ACTIVE'),
+('Interstellar', 'A team travels through a wormhole in space.', 169, 450, 'English', 'PG-13', 'ACTIVE'),
+('Dunkirk', 'Allied soldiers are evacuated during WWII.', 106, 300, 'English', 'PG-13', 'ACTIVE'),
+('Tenet', 'A secret agent manipulates time to prevent disaster.', 150, 375, 'English', 'PG-13', 'ACTIVE'),
+('Avatar (Cancelled)', 'A marine on an alien planet.', 162, 500, 'English', 'PG-13', 'CANCELLED')
 ON CONFLICT DO NOTHING;
 
 
 -- Insert sample venues
-INSERT INTO events.venues (name, location, opening_time, closing_time) VALUES
-('Cineplex Downtown', '123 Main St, Downtown', '09:00:00', '23:00:00'),
-('IMAX Theater', '456 Broadway Ave', '10:00:00', '22:00:00'),
-('Multiplex Mall', '789 Shopping Center', '08:00:00', '23:59:59')
+INSERT INTO events.venues (name, location, opening_time, closing_time, status) VALUES
+('Cineplex Downtown', '123 Main St, Downtown', '09:00:00', '23:00:00', 'ACTIVE'),
+('IMAX Theater', '456 Broadway Ave', '10:00:00', '22:00:00', 'ACTIVE'),
+('Multiplex Mall', '789 Shopping Center', '08:00:00', '23:59:59', 'ACTIVE'),
+('Old Town Cinema (Inactive)', '321 Retro Blvd', '10:00:00', '20:00:00', 'INACTIVE')
 ON CONFLICT DO NOTHING;
 
 -- Insert sample screens

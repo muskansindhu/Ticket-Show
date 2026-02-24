@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { apiRequest, formatCurrency } from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
-import { formatTime12Hour } from "../utils/time.js";
+import { useAuth } from "../context/auth.jsx";
 
-function formatDateLabel(value) {
+function formatDate(value) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
@@ -14,185 +15,228 @@ function formatDateLabel(value) {
   });
 }
 
-function formatDateTimeLabel(value) {
+function formatDateTime(value) {
   if (!value) return "--";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
-  return `${formatDateLabel(date)} · ${formatTime12Hour(value)}`;
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function isNotFoundError(err) {
-  const message = String(err?.message || "").toLowerCase();
-  return message.includes("not found") || message.includes("404");
+function normalizePasswordError(message) {
+  const text = String(message || "").toLowerCase();
+  if (!text || text.includes("not found") || text.includes("404")) {
+    return "Password updates are not available yet.";
+  }
+  return message;
 }
 
 export default function Profile() {
-  const [bookings, setBookings] = useState([]);
-  const [expandedBookingId, setExpandedBookingId] = useState(null);
-  const [detailsByBookingId, setDetailsByBookingId] = useState({});
-  const [loadingDetailsId, setLoadingDetailsId] = useState(null);
-  const [error, setError] = useState("");
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [form, setForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: ""
+  });
+  const [wallet, setWallet] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState("");
+
+  const displayName = useMemo(
+    () =>
+      user?.username ||
+      user?.name ||
+      (typeof user?.email === "string" ? user.email.split("@")[0] : "") ||
+      "User",
+    [user]
+  );
 
   useEffect(() => {
-    async function load() {
+    async function loadWallet() {
+      setWalletLoading(true);
+      setWalletError("");
       try {
-        const data = await apiRequest("/bookings");
-        setBookings(data);
+        const data = await apiRequest("/auth/wallet");
+        setWallet(data);
       } catch (err) {
-        setError(err.message);
+        setWalletError(err.message);
+      } finally {
+        setWalletLoading(false);
       }
     }
-    load();
+    loadWallet();
   }, []);
 
-  async function loadBookingDetails(bookingId) {
-    if (!bookingId || detailsByBookingId[bookingId]) return;
-    setLoadingDetailsId(bookingId);
-    try {
-      const [bookingResult, paymentResult] = await Promise.allSettled([
-        apiRequest(`/bookings/${bookingId}`),
-        apiRequest(`/payments/booking/${bookingId}`)
-      ]);
+  async function handlePasswordSubmit(event) {
+    event.preventDefault();
+    setPasswordMessage("");
+    setPasswordError("");
 
-      const nextDetail = {};
-      if (bookingResult.status === "fulfilled") {
-        nextDetail.booking = bookingResult.value;
-      } else {
-        nextDetail.bookingError = bookingResult.reason?.message || "Unable to load booking details.";
-      }
-
-      if (paymentResult.status === "fulfilled") {
-        nextDetail.payment = paymentResult.value;
-      } else if (!isNotFoundError(paymentResult.reason)) {
-        nextDetail.paymentError = paymentResult.reason?.message || "Unable to load payment details.";
-      }
-
-      setDetailsByBookingId((prev) => ({
-        ...prev,
-        [bookingId]: nextDetail
-      }));
-    } finally {
-      setLoadingDetailsId((current) => (current === bookingId ? null : current));
+    if (form.newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
     }
-  }
 
-  function handleToggleDetails(bookingId) {
-    setExpandedBookingId((current) => (current === bookingId ? null : bookingId));
-    if (!detailsByBookingId[bookingId]) {
-      loadBookingDetails(bookingId);
+    if (form.newPassword !== form.confirmPassword) {
+      setPasswordError("New password and confirm password do not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await apiRequest("/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: form.currentPassword,
+          new_password: form.newPassword
+        })
+      });
+
+      setPasswordMessage("Password updated successfully.");
+      setForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setShowPasswordForm(false);
+    } catch (err) {
+      setPasswordError(normalizePasswordError(err.message));
+    } finally {
+      setChangingPassword(false);
     }
   }
 
   return (
-    <section className="page">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow"><Icon name="profile" size={14} /> Profile</p>
-          <h2>My bookings</h2>
-          <p className="muted">Your booking history and status.</p>
+    <section className="page profile-page">
+      <div className="profile-hero reveal" style={{ "--delay": "0.03s" }}>
+        <div className="profile-avatar">
+          <Icon name="profile" size={34} />
         </div>
+        <h2>{displayName}</h2>
+        <p className="muted">Manage your account settings.</p>
       </div>
-      {error ? <p className="notice">{error}</p> : null}
-      <div className="list-stack booking-list">
-        {bookings.length === 0 ? <p className="muted">No bookings yet.</p> : null}
-        {bookings.map((booking, index) => {
-          const statusClass = `status-pill ${String(booking.status || "pending").toLowerCase()}`;
-          const isExpanded = expandedBookingId === booking.id;
-          const detail = detailsByBookingId[booking.id];
-          const bookingDetail = detail?.booking || booking;
-          const paymentDetail = detail?.payment || null;
-          const seatIds = Array.isArray(bookingDetail.seat_ids) ? bookingDetail.seat_ids : [];
-          const isLoadingDetails = loadingDetailsId === booking.id;
 
-          return (
-            <article
-              className={`booking-card booking-record reveal ${isExpanded ? "expanded" : ""}`}
-              style={{ "--delay": `${index * 0.05}s` }}
-              key={booking.id}
-            >
-              <button
-                className="booking-summary-btn"
-                type="button"
-                onClick={() => handleToggleDetails(booking.id)}
-                aria-expanded={isExpanded}
-                aria-controls={`booking-details-${booking.id}`}
-              >
-                <div className="booking-header">
-                  <div className="booking-title">
-                    <Icon name="ticket" size={16} />
-                    <h4>Booking #{booking.id}</h4>
-                  </div>
-                  <span className={statusClass}>{booking.status || "PENDING"}</span>
-                </div>
-                <div className="booking-meta booking-summary-meta">
-                  <span className="icon-inline"><Icon name="calendar" size={14} /> Schedule {booking.schedule_id}</span>
-                  <span className="icon-inline"><Icon name="seat" size={14} /> {seatIds.length} seat{seatIds.length === 1 ? "" : "s"}</span>
-                  <span className="icon-inline"><Icon name="credit" size={14} /> {formatCurrency(booking.total_amount)}</span>
-                </div>
-                <p className="muted booking-summary-hint">
-                  {isExpanded ? "Hide booking details" : "View booking details"}
-                </p>
+      <article className="form-card profile-panel reveal" style={{ "--delay": "0.08s" }}>
+        <h3>Account Details</h3>
+        <div className="profile-detail-grid">
+          <div className="profile-detail-item">
+            <span className="section-title">Username</span>
+            <strong>{user?.username || "--"}</strong>
+          </div>
+          <div className="profile-detail-item">
+            <span className="section-title">Email</span>
+            <strong>{user?.email || "--"}</strong>
+          </div>
+          <div className="profile-detail-item">
+            <span className="section-title">Joined</span>
+            <strong>{formatDate(user?.created_at)}</strong>
+          </div>
+        </div>
+
+        <div className="profile-password-head">
+          <div>
+            <p className="section-title">Password</p>
+            <p className="muted">Change your account password.</p>
+          </div>
+          <button
+            className="ghost"
+            type="button"
+            onClick={() => {
+              setShowPasswordForm((current) => !current);
+              setPasswordError("");
+              setPasswordMessage("");
+            }}
+          >
+            <Icon name="lock" size={14} />
+            {showPasswordForm ? "Hide" : "Change Password"}
+          </button>
+        </div>
+
+        {showPasswordForm ? (
+          <form className="profile-password-form" onSubmit={handlePasswordSubmit}>
+            <label>
+              Current password
+              <input
+                type="password"
+                value={form.currentPassword}
+                onChange={(event) => setForm({ ...form, currentPassword: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                value={form.newPassword}
+                onChange={(event) => setForm({ ...form, newPassword: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              Confirm new password
+              <input
+                type="password"
+                value={form.confirmPassword}
+                onChange={(event) => setForm({ ...form, confirmPassword: event.target.value })}
+                required
+              />
+            </label>
+            <div className="profile-password-actions">
+              <button className="primary" type="submit" disabled={changingPassword}>
+                {changingPassword ? "Updating..." : "Update password"}
               </button>
+            </div>
+          </form>
+        ) : null}
 
-              {isExpanded ? (
-                <div className="booking-details" id={`booking-details-${booking.id}`}>
-                  {isLoadingDetails ? <p className="muted">Loading booking details...</p> : null}
-                  {detail?.bookingError ? <p className="notice">{detail.bookingError}</p> : null}
+        {passwordError ? <p className="notice">{passwordError}</p> : null}
+        {passwordMessage ? <p className="notice">{passwordMessage}</p> : null}
+      </article>
 
-                  <div className="booking-detail-grid">
-                    <div className="booking-detail-item">
-                      <span className="section-title">Booking ID</span>
-                      <strong>#{bookingDetail.id ?? booking.id}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Schedule ID</span>
-                      <strong>{bookingDetail.schedule_id ?? booking.schedule_id ?? "--"}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Amount</span>
-                      <strong>{formatCurrency((bookingDetail.total_amount ?? booking.total_amount) ?? 0)}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Booked On</span>
-                      <strong>{formatDateTimeLabel(bookingDetail.created_at)}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Hold Expires</span>
-                      <strong>{formatDateTimeLabel(bookingDetail.expires_at)}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Seat IDs</span>
-                      <strong>{seatIds.length > 0 ? seatIds.join(", ") : "--"}</strong>
-                    </div>
-                    <div className="booking-detail-item">
-                      <span className="section-title">Correlation ID</span>
-                      <strong className="mono">{bookingDetail.correlation_id || "--"}</strong>
-                    </div>
-                  </div>
+      <article className="form-card profile-panel reveal" style={{ "--delay": "0.1s" }}>
+        <div className="profile-password-head" style={{ marginBottom: "0.5rem", paddingBottom: 0, border: "none" }}>
+          <div>
+            <h3>Wallet</h3>
+          </div>
+          <button
+            className="ghost"
+            type="button"
+            onClick={() => navigate("/transactions")}
+          >
+            <Icon name="wallet" size={14} />
+            View Transactions
+          </button>
+        </div>
 
-                  <div className="booking-payment-block">
-                    <p className="section-title">Payment</p>
-                    {paymentDetail ? (
-                      <div className="booking-payment-grid">
-                        <span className="icon-inline"><Icon name="wallet" size={13} /> {paymentDetail.payment_method || "--"}</span>
-                        <span className="icon-inline"><Icon name="credit" size={13} /> {formatCurrency(paymentDetail.amount)}</span>
-                        <span className={`status-pill ${String(paymentDetail.status || "pending").toLowerCase()}`}>
-                          {paymentDetail.status || "PENDING"}
-                        </span>
-                        <span className="muted">Txn: {paymentDetail.transaction_id || "--"}</span>
-                      </div>
-                    ) : detail?.paymentError ? (
-                      <p className="notice">{detail.paymentError}</p>
-                    ) : (
-                      <p className="muted">Payment not completed yet.</p>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
-      </div>
+        <div className="profile-detail-grid">
+          <div className="profile-detail-item" style={{ flex: 1, border: "none" }}>
+            <span className="section-title">Total Amount Available</span>
+            <strong style={{ fontSize: "1.5rem" }}>{formatCurrency(wallet?.current_amount ?? user?.wallet_balance ?? 0)}</strong>
+          </div>
+        </div>
+
+        {walletLoading ? <p className="muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>Loading wallet...</p> : null}
+        {walletError ? <p className="notice">{walletError}</p> : null}
+      </article>
+
+      <button
+        className="profile-bookings-bar reveal"
+        type="button"
+        style={{ "--delay": "0.12s" }}
+        onClick={() => navigate("/bookings")}
+      >
+        <span className="icon-row">
+          <Icon name="ticket" size={15} />
+          Bookings
+        </span>
+        <Icon name="arrowRight" size={16} />
+      </button>
     </section>
   );
 }

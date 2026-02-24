@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { apiRequest, formatCurrency, makeIdempotencyKey } from "../apiClient.js";
+import {
+  apiRequest,
+  formatCurrency,
+  makeIdempotencyKey,
+} from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
 import { formatTime12Hour } from "../utils/time.js";
 import poster1 from "../assets/posters/poster-1.jpg";
@@ -64,7 +68,7 @@ export default function Seats() {
     setSelected((prev) =>
       prev.some((item) => item.id === seat.id)
         ? prev.filter((item) => item.id !== seat.id)
-        : [...prev, seat]
+        : [...prev, seat],
     );
   }
 
@@ -75,15 +79,15 @@ export default function Seats() {
       const payload = {
         schedule_id: Number(scheduleId),
         seat_ids: selected.map((seat) => seat.id),
-        idempotency_key: makeIdempotencyKey()
+        idempotency_key: makeIdempotencyKey(),
       };
       const booking = await apiRequest("/bookings", {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       const amount = (show?.price || 0) * selected.length;
       navigate("/payment", {
-        state: { booking, amount, show, venue, schedule }
+        state: { booking, amount, show, venue, schedule },
       });
     } catch (err) {
       setError(err.message);
@@ -91,10 +95,15 @@ export default function Seats() {
   }
 
   const total = (show?.price || 0) * selected.length;
-  const scheduleDate = schedule?.start_time ? new Date(schedule.start_time) : null;
-  const scheduleLabel = schedule?.start_time ? formatTime12Hour(schedule.start_time) : "";
+  const scheduleDate = schedule?.start_time
+    ? new Date(schedule.start_time)
+    : null;
+  const scheduleLabel = schedule?.start_time
+    ? formatTime12Hour(schedule.start_time)
+    : "";
   const scheduleYear = scheduleDate ? scheduleDate.getFullYear() : "";
-  const heroPoster = posters[(Number(show?.id || scheduleId) || 0) % posters.length];
+  const heroPoster =
+    posters[(Number(show?.id || scheduleId) || 0) % posters.length];
 
   return (
     <section className="page seat-page">
@@ -109,14 +118,20 @@ export default function Seats() {
               </div>
             </div>
             <div className="seat-details">
-              <p className="eyebrow"><Icon name="film" size={14} /> Seat booking</p>
+              <p className="eyebrow">
+                <Icon name="film" size={14} /> Seat booking
+              </p>
               <h2>{show?.title || "Show"}</h2>
               <div className="seat-meta">
                 {scheduleYear ? <span>{scheduleYear}</span> : null}
-                {show?.duration_minutes ? <span>{show.duration_minutes} min</span> : null}
+                {show?.duration_minutes ? (
+                  <span>{show.duration_minutes} min</span>
+                ) : null}
                 {venue?.name ? <span>{venue.name}</span> : null}
               </div>
-              <p className="muted">{show?.description || "Select seats and confirm your booking."}</p>
+              <p className="muted">
+                {show?.description || "Select seats and confirm your booking."}
+              </p>
             </div>
           </div>
 
@@ -132,9 +147,13 @@ export default function Seats() {
             <p className="section-title">Selected tickets</p>
             <div className="ticket-list">
               <p className="ticket-quantity">
-                {selected.length} {selected.length === 1 ? "seat" : "seats"} selected
+                {selected.length} {selected.length === 1 ? "seat" : "seats"}{" "}
+                selected
               </p>
-              <p className="muted">Seat and row details are shown on the final ticket after booking.</p>
+              <p className="muted">
+                Seat and row details are shown on the final ticket after
+                booking.
+              </p>
             </div>
           </div>
 
@@ -143,8 +162,13 @@ export default function Seats() {
               <p className="section-title">Total</p>
               <p className="total-amount">{formatCurrency(total)}</p>
             </div>
-            <button className="primary" type="button" onClick={handleBooking} disabled={selected.length === 0}>
-              <Icon name="ticket" size={16} /> Buy tickets
+            <button
+              className="primary"
+              type="button"
+              onClick={handleBooking}
+              disabled={selected.length === 0}
+            >
+              Buy tickets
             </button>
           </div>
         </aside>
@@ -152,13 +176,21 @@ export default function Seats() {
         <div className="seat-map reveal" style={{ "--delay": "0.1s" }}>
           <div className="seat-map__top">
             <div>
-              <p className="eyebrow"><Icon name="seat" size={14} /> Choose seats</p>
+              <p className="eyebrow">
+                <Icon name="seat" size={14} /> Choose seats
+              </p>
               <h3>Seating</h3>
             </div>
             <div className="legend">
-              <span><i className="dot selected"></i>Selected</span>
-              <span><i className="dot available"></i>Available</span>
-              <span><i className="dot booked"></i>Booked</span>
+              <span>
+                <i className="dot selected"></i>Selected
+              </span>
+              <span>
+                <i className="dot available"></i>Available
+              </span>
+              <span>
+                <i className="dot booked"></i>Booked
+              </span>
             </div>
           </div>
           <div className="screen-arc">
@@ -167,7 +199,9 @@ export default function Seats() {
           {loading ? (
             <p className="muted">Loading seats...</p>
           ) : grouped.length === 0 ? (
-            <p className="muted">No seats are configured for this screen yet.</p>
+            <p className="muted">
+              No seats are configured for this screen yet.
+            </p>
           ) : (
             <div className="seat-grid">
               {grouped.map(([row, rowSeats]) => (
@@ -175,14 +209,16 @@ export default function Seats() {
                   <span className="row-label row-label-left">{row}</span>
                   <div className="seat-row-grid">
                     {rowSeats.map((seat) => {
-                      const isSelected = selected.some((item) => item.id === seat.id);
+                      const isSelected = selected.some(
+                        (item) => item.id === seat.id,
+                      );
                       const className = seat.is_booked
                         ? "seat booked"
                         : seat.is_locked
-                        ? "seat locked"
-                        : isSelected
-                        ? "seat selected"
-                        : "seat";
+                          ? "seat locked"
+                          : isSelected
+                            ? "seat selected"
+                            : "seat";
                       return (
                         <button
                           key={seat.id}

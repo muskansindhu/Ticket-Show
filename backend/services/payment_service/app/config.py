@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     # Kafka
     KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
+    AUTH_SERVICE_URL: str = "http://auth-service:8000"
 
     # Payment
     PAYMENT_PROCESSING_DELAY_SECONDS: int = 2

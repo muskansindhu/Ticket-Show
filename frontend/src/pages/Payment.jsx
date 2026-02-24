@@ -15,12 +15,14 @@ export default function Payment() {
   const schedule = state?.schedule;
   const amount = state?.amount || booking?.total_amount || 0;
   const seatCount = booking?.seat_ids?.length || 0;
-  const scheduleLabel = schedule?.start_time ? formatTime12Hour(schedule.start_time) : "--";
+  const scheduleLabel = schedule?.start_time
+    ? formatTime12Hour(schedule.start_time)
+    : "--";
 
   const [form, setForm] = useState({
     booking_id: booking?.id || "",
     amount,
-    payment_method: "CARD"
+    payment_method: "CARD",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,8 +42,8 @@ export default function Payment() {
           booking_id: Number(form.booking_id),
           amount: Number(form.amount),
           payment_method: form.payment_method,
-          user_id: user?.id || 0
-        })
+          user_id: user?.id || 0,
+        }),
       });
       navigate("/", { replace: true });
     } catch (err) {
@@ -55,15 +57,23 @@ export default function Payment() {
     <section className="page">
       <div className="page-header">
         <div>
-          <p className="eyebrow"><Icon name="credit" size={14} /> Secure payment</p>
+          <p className="eyebrow">
+            <Icon name="credit" size={14} /> Secure payment
+          </p>
           <h2>Payment</h2>
           <p className="muted">Confirm payment to finish the booking.</p>
         </div>
       </div>
       <div className="grid-cards payment-shell">
-        <form className="form-card payment-form reveal" style={{ "--delay": "0.06s" }} onSubmit={handlePay}>
+        <form
+          className="form-card payment-form reveal"
+          style={{ "--delay": "0.06s" }}
+          onSubmit={handlePay}
+        >
           <div className="payment-form-head">
-            <h3 className="title-row"><Icon name="wallet" size={16} /> Checkout details</h3>
+            <h3 className="title-row">
+              <Icon name="wallet" size={16} /> Checkout details
+            </h3>
             <span className="status-pill pending">Secure session</span>
           </div>
           <div className="payment-info-grid">
@@ -78,7 +88,11 @@ export default function Payment() {
               Amount payable
               <div className="input-wrap">
                 <Icon name="credit" size={16} className="input-icon" />
-                <input type="text" value={formatCurrency(form.amount)} readOnly />
+                <input
+                  type="text"
+                  value={formatCurrency(form.amount)}
+                  readOnly
+                />
               </div>
             </label>
           </div>
@@ -88,7 +102,9 @@ export default function Payment() {
               <Icon name="wallet" size={16} className="input-icon" />
               <select
                 value={form.payment_method}
-                onChange={(event) => setForm({ ...form, payment_method: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, payment_method: event.target.value })
+                }
               >
                 <option value="CARD">Card</option>
                 <option value="UPI">UPI</option>
@@ -98,16 +114,25 @@ export default function Payment() {
             </div>
           </label>
           <div className="payment-trust muted">
-            <span className="icon-row"><Icon name="lock" size={13} /> PCI-compliant secure checkout</span>
-            <span className="icon-row"><Icon name="ticket" size={13} /> Instant booking confirmation</span>
+            <span className="icon-row">
+              <Icon name="lock" size={13} /> PCI-compliant secure checkout
+            </span>
+            <span className="icon-row">
+              <Icon name="ticket" size={13} /> Instant booking confirmation
+            </span>
           </div>
           <button className="primary" type="submit" disabled={loading}>
-            <Icon name="credit" size={16} /> {loading ? "Processing..." : `Pay ${formatCurrency(form.amount)}`}
+            {loading ? "Processing..." : `Pay ${formatCurrency(form.amount)}`}
           </button>
           {error ? <p className="notice">{error}</p> : null}
         </form>
-        <div className="form-card payment-summary reveal" style={{ "--delay": "0.12s" }}>
-          <h3 className="title-row"><Icon name="ticket" size={16} /> Order summary</h3>
+        <div
+          className="form-card payment-summary reveal"
+          style={{ "--delay": "0.12s" }}
+        >
+          <h3 className="title-row">
+            <Icon name="ticket" size={16} /> Order summary
+          </h3>
           <div className="payment-summary-list">
             <div className="payment-summary-row">
               <span className="muted">Movie</span>
@@ -130,7 +155,9 @@ export default function Payment() {
             <span className="muted">Total payable</span>
             <strong>{formatCurrency(amount)}</strong>
           </div>
-          <p className="muted">After payment, you will be redirected to your dashboard.</p>
+          <p className="muted">
+            After payment, you will be redirected to your dashboard.
+          </p>
         </div>
       </div>
     </section>

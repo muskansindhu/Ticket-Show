@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_SECRET: str = "test-secret-key-for-jwt-generation"
+    BOOKING_SERVICE_URL: str = "http://booking-service:8000"
 
     # Service
     SERVICE_NAME: str = "event-service"

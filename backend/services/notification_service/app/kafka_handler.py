@@ -4,7 +4,7 @@ from email.message import EmailMessage
 
 import aiosmtplib
 
-from shared.schemas import BookingFailedEvent, BookingSuccessfulEvent
+from shared.schemas import BookingFailedEvent, BookingSuccessfulEvent, RefundInitiatedEvent
 from shared.utils import KafkaConsumerClient, setup_logger
 from .config import settings
 
@@ -164,6 +164,46 @@ async def handle_booking_failed(message: dict):
         raise
 
 
+async def handle_refund_initiated(message: dict):
+    """Handle refund initiated event."""
+    try:
+        event = RefundInitiatedEvent(**message)
+        logger.info(
+            "Processing refund initiated event for booking %s",
+            event.booking_id,
+            extra={"correlation_id": event.correlation_id},
+        )
+
+        to_email = _resolve_recipient_email(event)
+        if not to_email:
+            raise ValueError(
+                "No recipient email available. Provide user_email in the event or set "
+                "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
+            )
+
+        subject = "Refund initiated for your Ticket Show booking"
+        body = textwrap.dedent(
+            f"""
+            Hi there,
+
+            Your booking {event.booking_id} has been cancelled and we have initiated a refund of ${event.amount}.
+            Reason: {event.reason}
+
+            The amount will be credited to your Ticket Show wallet shortly.
+
+            Thanks,
+            The TicketShow Team
+            """
+        ).strip()
+        await send_email_notification(to_email=to_email, subject=subject, body=body)
+    except Exception as e:
+        logger.error(
+            f"Error handling refund initiated event: {str(e)}",
+            exc_info=True,
+        )
+        raise
+
+
 async def start_kafka_consumers():
     """Start Kafka consumers for notification events"""
     # Consumer for booking.successful
@@ -183,16 +223,27 @@ async def start_kafka_consumers():
         max_retries=3,
         retry_delay=1,
     )
+    refund_consumer = KafkaConsumerClient(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id="notification-service-refund-group",
+        topics=["notification.refund_initiated"],
+        max_retries=3,
+        retry_delay=1,
+    )
 
     await successful_consumer.start()
     await failed_consumer.start()
+    await refund_consumer.start()
 
-    logger.info("Kafka consumers started for booking.successful and booking.failed")
+    logger.info(
+        "Kafka consumers started for booking.successful, booking.failed, and notification.refund_initiated"
+    )
 
     # Start consuming in parallel
     await asyncio.gather(
         successful_consumer.consume(handle_booking_successful),
         failed_consumer.consume(handle_booking_failed),
+        refund_consumer.consume(handle_refund_initiated),
     )
 
 

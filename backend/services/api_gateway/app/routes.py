@@ -13,6 +13,7 @@ from shared.schemas import (
     UserCreate,
     UserLogin,
     UserResponse,
+    WalletResponse,
 )
 from shared.schemas.event_schemas import (
     ScheduleCreate,
@@ -21,8 +22,10 @@ from shared.schemas.event_schemas import (
     ScreenCreate,
     ScreenResponse,
     ShowCreate,
+    ShowUpdate,
     ShowResponse,
     VenueCreate,
+    VenueUpdate,
     VenueResponse,
 )
 from .auth import get_current_user
@@ -78,6 +81,19 @@ async def get_me(
     )
 
 
+@auth_router.get("/wallet", response_model=WalletResponse)
+async def get_wallet(
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    return await proxy_request(
+        "GET",
+        f"{settings.AUTH_SERVICE_URL}/auth/wallet",
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=10.0,
+    )
+
+
 # ==================== SHOWS ROUTES ====================
 
 @shows_router.post("/", response_model=ShowResponse, status_code=status.HTTP_201_CREATED)
@@ -99,11 +115,16 @@ async def create_show(
 async def get_shows(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_cancelled: bool = Query(False),
 ):
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/shows/",
-        params={"skip": skip, "limit": limit},
+        params={
+            "skip": skip,
+            "limit": limit,
+            "include_cancelled": include_cancelled,
+        },
         timeout=10.0,
     )
 
@@ -112,8 +133,13 @@ async def get_shows(
 async def get_shows_no_slash(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_cancelled: bool = Query(False),
 ):
-    return await get_shows(skip=skip, limit=limit)
+    return await get_shows(
+        skip=skip,
+        limit=limit,
+        include_cancelled=include_cancelled,
+    )
 
 
 @shows_router.get("/{show_id}/venues", response_model=List[VenueResponse])
@@ -121,6 +147,36 @@ async def get_show_venues(show_id: int):
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/shows/{show_id}/venues",
+        timeout=10.0,
+    )
+
+
+@shows_router.patch("/{show_id}", response_model=ShowResponse)
+async def update_show(
+    show_id: int,
+    show_data: ShowUpdate,
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    return await proxy_request(
+        "PATCH",
+        f"{settings.EVENT_SERVICE_URL}/shows/{show_id}",
+        json=jsonable_encoder(show_data.model_dump(exclude_unset=True)),
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=10.0,
+    )
+
+
+@shows_router.delete("/{show_id}")
+async def delete_show(
+    show_id: int,
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    return await proxy_request(
+        "DELETE",
+        f"{settings.EVENT_SERVICE_URL}/shows/{show_id}",
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
         timeout=10.0,
     )
 
@@ -146,11 +202,16 @@ async def create_venue(
 async def get_venues(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_inactive: bool = Query(False),
 ):
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/venues/",
-        params={"skip": skip, "limit": limit},
+        params={
+            "skip": skip,
+            "limit": limit,
+            "include_inactive": include_inactive,
+        },
         timeout=10.0,
     )
 
@@ -159,8 +220,43 @@ async def get_venues(
 async def get_venues_no_slash(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_inactive: bool = Query(False),
 ):
-    return await get_venues(skip=skip, limit=limit)
+    return await get_venues(
+        skip=skip,
+        limit=limit,
+        include_inactive=include_inactive,
+    )
+
+
+@venues_router.patch("/{venue_id}", response_model=VenueResponse)
+async def update_venue(
+    venue_id: int,
+    venue_data: VenueUpdate,
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    return await proxy_request(
+        "PATCH",
+        f"{settings.EVENT_SERVICE_URL}/venues/{venue_id}",
+        json=jsonable_encoder(venue_data.model_dump(exclude_unset=True)),
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=10.0,
+    )
+
+
+@venues_router.delete("/{venue_id}")
+async def delete_venue(
+    venue_id: int,
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    return await proxy_request(
+        "DELETE",
+        f"{settings.EVENT_SERVICE_URL}/venues/{venue_id}",
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=10.0,
+    )
 
 
 # ==================== SCREENS ROUTES ====================
@@ -224,6 +320,7 @@ async def get_venue_schedules(
     from_date: str = Query(None),
     to_date: str = Query(None),
     show_id: int = Query(None),
+    include_cancelled: bool = Query(False),
 ):
     params = {}
     if from_date:
@@ -232,6 +329,8 @@ async def get_venue_schedules(
         params["to_date"] = to_date
     if show_id:
         params["show_id"] = show_id
+    if include_cancelled:
+        params["include_cancelled"] = include_cancelled
 
     return await proxy_request(
         "GET",

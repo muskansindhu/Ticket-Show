@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://ticketshow:ticketshow123@localhost:5432/ticketshow"
+    KAFKA_BOOTSTRAP_SERVERS: str = "kafka:9092"
 
     # Booking
     BOOKING_LOCK_TIMEOUT_MINUTES: int = 10

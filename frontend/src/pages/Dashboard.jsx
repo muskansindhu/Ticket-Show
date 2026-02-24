@@ -12,7 +12,17 @@ import poster7 from "../assets/posters/poster-7.jpg";
 import poster8 from "../assets/posters/poster-8.jpg";
 import poster9 from "../assets/posters/poster-9.jpg";
 
-const posters = [poster1, poster2, poster3, poster4, poster5, poster6, poster7, poster8, poster9];
+const posters = [
+  poster1,
+  poster2,
+  poster3,
+  poster4,
+  poster5,
+  poster6,
+  poster7,
+  poster8,
+  poster9,
+];
 const genres = ["Action", "Drama", "Sci-Fi", "Thriller", "Romance"];
 const formats = ["2D", "IMAX", "4DX", "Dolby"];
 
@@ -34,7 +44,7 @@ export default function Dashboard() {
   }, []);
 
   const languages = Array.from(
-    new Set(shows.map((show) => show.language || "English"))
+    new Set(shows.map((show) => show.language || "English")),
   );
 
   return (
@@ -44,36 +54,54 @@ export default function Dashboard() {
 
         <div className="dashboard-filter-card">
           <div className="dashboard-filter-head">
-            <p className="icon-inline"><Icon name="spark" size={13} /> Languages</p>
-            <button type="button" className="filter-clear">Clear</button>
+            <p className="icon-inline">
+              <Icon name="spark" size={13} /> Languages
+            </p>
+            <button type="button" className="filter-clear">
+              Clear
+            </button>
           </div>
           <div className="dashboard-filter-grid">
             {languages.map((lang) => (
-              <span key={lang} className="dashboard-filter-chip">{lang}</span>
+              <span key={lang} className="dashboard-filter-chip">
+                {lang}
+              </span>
             ))}
           </div>
         </div>
 
         <div className="dashboard-filter-card collapsed">
           <div className="dashboard-filter-head">
-            <p className="icon-inline"><Icon name="star" size={13} /> Genres</p>
-            <button type="button" className="filter-clear">Clear</button>
+            <p className="icon-inline">
+              <Icon name="star" size={13} /> Genres
+            </p>
+            <button type="button" className="filter-clear">
+              Clear
+            </button>
           </div>
           <div className="dashboard-filter-row">
             {genres.map((genre) => (
-              <span key={genre} className="dashboard-filter-chip muted-chip">{genre}</span>
+              <span key={genre} className="dashboard-filter-chip muted-chip">
+                {genre}
+              </span>
             ))}
           </div>
         </div>
 
         <div className="dashboard-filter-card collapsed">
           <div className="dashboard-filter-head">
-            <p className="icon-inline"><Icon name="ticket" size={13} /> Format</p>
-            <button type="button" className="filter-clear">Clear</button>
+            <p className="icon-inline">
+              <Icon name="ticket" size={13} /> Format
+            </p>
+            <button type="button" className="filter-clear">
+              Clear
+            </button>
           </div>
           <div className="dashboard-filter-row">
             {formats.map((format) => (
-              <span key={format} className="dashboard-filter-chip muted-chip">{format}</span>
+              <span key={format} className="dashboard-filter-chip muted-chip">
+                {format}
+              </span>
             ))}
           </div>
         </div>
@@ -83,26 +111,29 @@ export default function Dashboard() {
           type="button"
           onClick={() => navigate("/venues")}
         >
-          <Icon name="location" size={14} /> Browse by venue
+          Browse by venue
         </button>
       </aside>
 
       <div className="dashboard-main">
         <header className="dashboard-main-head">
           <div>
-            <p className="eyebrow"><Icon name="film" size={14} /> Now showing</p>
+            <p className="eyebrow">
+              <Icon name="film" size={14} /> Now showing
+            </p>
             <h2>Movies In Your City</h2>
           </div>
-          <span className="meta-chip dashboard-count"><Icon name="ticket" size={12} /> {shows.length} shows</span>
         </header>
 
-        {languages.length > 0 ? (
+        {/* {languages.length > 0 ? (
           <div className="dashboard-lang-strip">
             {languages.map((lang) => (
-              <span key={lang} className="meta-chip">{lang}</span>
+              <span key={lang} className="meta-chip">
+                {lang}
+              </span>
             ))}
           </div>
-        ) : null}
+        ) : null} */}
 
         {error ? <p className="notice">{error}</p> : null}
 
@@ -115,20 +146,31 @@ export default function Dashboard() {
                 className="dashboard-movie-card clickable reveal"
                 style={{ "--delay": `${index * 0.04}s` }}
                 key={show.id}
-                onClick={() => navigate(`/shows/${show.id}`, { state: { show } })}
+                onClick={() =>
+                  navigate(`/shows/${show.id}`, { state: { show } })
+                }
               >
                 <div className="dashboard-movie-poster">
                   <img src={poster} alt={show.title} loading="lazy" />
                   <div className="dashboard-movie-meta">
-                    <span className="icon-inline"><Icon name="star" size={12} /> {show.rating || "NR"}</span>
-                    <span className="icon-inline"><Icon name="clock" size={12} /> {show.duration_minutes} min</span>
+                    <span className="icon-inline">
+                      <Icon name="star" size={12} /> {show.rating || "NR"}
+                    </span>
+                    <span className="icon-inline">
+                      <Icon name="clock" size={12} /> {show.duration_minutes}{" "}
+                      min
+                    </span>
                   </div>
                 </div>
                 <div className="dashboard-movie-info">
                   <h3>{show.title}</h3>
-                  <p className="muted">{show.rating || "A"} • {language}</p>
+                  <p className="muted">
+                    {show.rating || "A"} • {language}
+                  </p>
                   <p className="muted dashboard-desc">{show.description}</p>
-                  <p className="dashboard-price">{formatCurrency(show.price)}</p>
+                  <p className="dashboard-price">
+                    {formatCurrency(show.price)}
+                  </p>
                 </div>
               </article>
             );

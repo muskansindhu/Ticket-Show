@@ -1,21 +1,28 @@
 from datetime import datetime, timedelta
 from typing import List
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, select, text
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas.event_schemas import (
     ScheduleCreate,
     ScheduleResponse,
+    ScheduleUpdate,
     ScheduleWithDetails,
     ScreenCreate,
     ScreenResponse,
+    ScreenUpdate,
     ShowCreate,
     ShowResponse,
+    ShowStatus,
+    ShowUpdate,
     VenueCreate,
     VenueResponse,
+    VenueStatus,
+    VenueUpdate,
 )
 from shared.utils import setup_logger
 from shared.utils.rbac import create_rbac
@@ -37,6 +44,99 @@ screens_router = APIRouter(prefix="/screens", tags=["screens"])
 schedules_router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
+async def _get_show_or_404(show_id: int, db: AsyncSession):
+    result = await db.execute(select(Show).where(Show.id == show_id))
+    show = result.scalar_one_or_none()
+    if not show:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Show not found",
+        )
+    return show
+
+
+async def _get_screen_or_404(screen_id: int, db: AsyncSession):
+    result = await db.execute(select(Screen).where(Screen.id == screen_id))
+    screen = result.scalar_one_or_none()
+    if not screen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Screen not found",
+        )
+    return screen
+
+
+async def _get_venue_for_screen(screen: Screen, db: AsyncSession):
+    result = await db.execute(select(Venue).where(Venue.id == screen.venue_id))
+    venue = result.scalar_one_or_none()
+    if not venue:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Venue not found",
+        )
+    return venue
+
+
+def _validate_schedule_window(start_time: datetime, end_time: datetime, venue: Venue):
+    start_time_of_day = start_time.time()
+    end_time_of_day = end_time.time()
+
+    if start_time_of_day < venue.opening_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Schedule start time "
+                f"({start_time_of_day}) is before venue opening time "
+                f"({venue.opening_time})"
+            ),
+        )
+
+    if end_time_of_day > venue.closing_time:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Schedule end time "
+                f"({end_time_of_day}) is after venue closing time "
+                f"({venue.closing_time})"
+            ),
+        )
+
+
+def _ensure_show_is_active(show: Show):
+    if show.status != ShowStatus.ACTIVE.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot use a cancelled show for scheduling",
+        )
+
+
+def _ensure_venue_is_active(venue: Venue):
+    if venue.status != VenueStatus.ACTIVE.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot use an inactive venue for scheduling",
+        )
+
+
+async def _cancel_related_bookings(path: str):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{settings.BOOKING_SERVICE_URL}{path}",
+                timeout=15.0,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to cancel related bookings",
+                )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Booking service unavailable",
+        )
+
+
 # ==================== SHOWS (ADMIN ONLY) ====================
 
 @shows_router.post("/", response_model=ShowResponse, status_code=status.HTTP_201_CREATED)
@@ -49,6 +149,7 @@ async def create_show(
     try:
         new_show = Show(
             title=show_data.title,
+            status=ShowStatus.ACTIVE.value,
             duration_minutes=show_data.duration_minutes,
             price=show_data.price,
             description=show_data.description,
@@ -73,12 +174,16 @@ async def create_show(
 async def get_shows(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_cancelled: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all shows (PUBLIC)"""
     try:
+        query = select(Show)
+        if not include_cancelled:
+            query = query.where(Show.status == ShowStatus.ACTIVE.value)
         result = await db.execute(
-            select(Show).offset(skip).limit(limit).order_by(Show.created_at.desc())
+            query.offset(skip).limit(limit).order_by(Show.created_at.desc())
         )
         shows = result.scalars().all()
         return shows
@@ -102,7 +207,10 @@ async def get_show_venues(
             select(Venue)
             .join(Screen, Screen.venue_id == Venue.id)
             .join(Schedule, Schedule.screen_id == Screen.id)
+            .join(Show, Show.id == Schedule.show_id)
             .where(Schedule.show_id == show_id)
+            .where(Show.status == ShowStatus.ACTIVE.value)
+            .where(Venue.status == VenueStatus.ACTIVE.value)
             .distinct(Venue.id)
         )
         venues = result.scalars().all()
@@ -113,6 +221,79 @@ async def get_show_venues(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch venues for show",
+        )
+
+
+@shows_router.patch("/{show_id}", response_model=ShowResponse)
+async def update_show(
+    show_id: int,
+    show_data: ShowUpdate,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing show (ADMIN only)"""
+    try:
+        show = await _get_show_or_404(show_id, db)
+        payload = show_data.model_dump(exclude_unset=True)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided for update",
+            )
+
+        for field, value in payload.items():
+            setattr(show, field, value)
+
+        next_show_status = payload.get("status")
+        if isinstance(next_show_status, ShowStatus):
+            next_show_status = next_show_status.value
+        if next_show_status == ShowStatus.CANCELLED.value:
+            await _cancel_related_bookings(
+                f"/bookings/internal/cancel-by-show/{show.id}"
+            )
+
+        await db.commit()
+        await db.refresh(show)
+        logger.info("Show updated: %s by admin %s", show.title, current_user["user_id"])
+        return show
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating show: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update show",
+        )
+
+
+@shows_router.delete("/{show_id}")
+async def delete_show(
+    show_id: int,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a show as cancelled and trigger related booking cancellations."""
+    try:
+        show = await _get_show_or_404(show_id, db)
+        if show.status == ShowStatus.CANCELLED.value:
+            return {"detail": "Show already cancelled"}
+
+        show.status = ShowStatus.CANCELLED.value
+        await _cancel_related_bookings(
+            f"/bookings/internal/cancel-by-show/{show.id}"
+        )
+        await db.commit()
+        logger.info("Show cancelled: %s by admin %s", show.title, current_user["user_id"])
+        return {"detail": "Show cancelled successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting show: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete show",
         )
 
 
@@ -128,6 +309,7 @@ async def create_venue(
     try:
         new_venue = Venue(
             name=venue_data.name,
+            status=VenueStatus.ACTIVE.value,
             location=venue_data.location,
             opening_time=venue_data.opening_time,
             closing_time=venue_data.closing_time,
@@ -154,11 +336,15 @@ async def create_venue(
 async def get_venues(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_inactive: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all venues (PUBLIC)"""
     try:
-        result = await db.execute(select(Venue).offset(skip).limit(limit))
+        query = select(Venue)
+        if not include_inactive:
+            query = query.where(Venue.status == VenueStatus.ACTIVE.value)
+        result = await db.execute(query.offset(skip).limit(limit))
         venues = result.scalars().all()
         return venues
 
@@ -174,9 +360,130 @@ async def get_venues(
 async def get_venues_no_slash(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    include_inactive: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
-    return await get_venues(skip=skip, limit=limit, db=db)
+    return await get_venues(
+        skip=skip,
+        limit=limit,
+        include_inactive=include_inactive,
+        db=db,
+    )
+
+
+@venues_router.patch("/{venue_id}", response_model=VenueResponse)
+async def update_venue(
+    venue_id: int,
+    venue_data: VenueUpdate,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing venue (ADMIN only)"""
+    try:
+        result = await db.execute(select(Venue).where(Venue.id == venue_id))
+        venue = result.scalar_one_or_none()
+        if not venue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Venue not found",
+            )
+        _ensure_venue_is_active(venue)
+
+        payload = venue_data.model_dump(exclude_unset=True)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided for update",
+            )
+
+        if "opening_time" in payload and payload["opening_time"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="opening_time cannot be null",
+            )
+
+        if "closing_time" in payload and payload["closing_time"] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="closing_time cannot be null",
+            )
+
+        opening_time = (
+            payload["opening_time"]
+            if "opening_time" in payload
+            else venue.opening_time
+        )
+        closing_time = (
+            payload["closing_time"]
+            if "closing_time" in payload
+            else venue.closing_time
+        )
+        if closing_time <= opening_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="closing_time must be after opening_time",
+            )
+
+        for field, value in payload.items():
+            setattr(venue, field, value)
+
+        next_venue_status = payload.get("status")
+        if isinstance(next_venue_status, VenueStatus):
+            next_venue_status = next_venue_status.value
+        if next_venue_status == VenueStatus.INACTIVE.value:
+            await _cancel_related_bookings(
+                f"/bookings/internal/cancel-by-venue/{venue.id}"
+            )
+
+        await db.commit()
+        await db.refresh(venue)
+        logger.info("Venue updated: %s by admin %s", venue.name, current_user["user_id"])
+        return venue
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating venue: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update venue",
+        )
+
+
+@venues_router.delete("/{venue_id}")
+async def delete_venue(
+    venue_id: int,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a venue inactive and trigger related booking cancellations."""
+    try:
+        result = await db.execute(select(Venue).where(Venue.id == venue_id))
+        venue = result.scalar_one_or_none()
+        if not venue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Venue not found",
+            )
+        if venue.status == VenueStatus.INACTIVE.value:
+            return {"detail": "Venue already inactive"}
+
+        venue.status = VenueStatus.INACTIVE.value
+        await _cancel_related_bookings(
+            f"/bookings/internal/cancel-by-venue/{venue.id}"
+        )
+        await db.commit()
+        logger.info("Venue inactivated: %s by admin %s", venue.name, current_user["user_id"])
+        return {"detail": "Venue marked inactive successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting venue: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete venue",
+        )
 
 
 # ==================== SCREENS (ADMIN ONLY) ====================
@@ -263,6 +570,62 @@ async def get_screens(
             detail="Failed to fetch screens",
         )
 
+
+@screens_router.patch("/{screen_id}", response_model=ScreenResponse)
+async def update_screen(
+    screen_id: int,
+    screen_data: ScreenUpdate,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing screen (ADMIN only)"""
+    try:
+        screen = await _get_screen_or_404(screen_id, db)
+        payload = screen_data.model_dump(exclude_unset=True)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided for update",
+            )
+
+        if "name" in payload:
+            screen.name = payload["name"]
+
+        if "capacity" in payload:
+            new_capacity = payload["capacity"]
+            if new_capacity < screen.capacity:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Reducing screen capacity is not supported",
+                )
+            if new_capacity > screen.capacity:
+                seats = []
+                for i in range(screen.capacity + 1, new_capacity + 1):
+                    seat = Seat(
+                        screen_id=screen.id,
+                        seat_number=f"S{str(i).zfill(3)}",
+                        row_number=f"R{str((i - 1) // 10 + 1).zfill(2)}",
+                    )
+                    seats.append(seat)
+                if seats:
+                    db.add_all(seats)
+                screen.capacity = new_capacity
+
+        await db.commit()
+        await db.refresh(screen)
+        logger.info("Screen updated: %s by admin %s", screen.name, current_user["user_id"])
+        return screen
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating screen: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update screen",
+        )
+
+
 # ==================== SCHEDULES (ADMIN CREATE, USER VIEW) ====================
 
 @schedules_router.post("/", response_model=ScheduleResponse, status_code=status.HTTP_201_CREATED)
@@ -273,64 +636,15 @@ async def create_schedule(
 ):
     """Create a new schedule (ADMIN only) with scheduling constraints enforcement"""
     try:
-        # 1. Fetch show to get duration
-        show_result = await db.execute(
-            select(Show).where(Show.id == schedule_data.show_id)
-        )
-        show = show_result.scalar_one_or_none()
+        show = await _get_show_or_404(schedule_data.show_id, db)
+        screen = await _get_screen_or_404(schedule_data.screen_id, db)
+        venue = await _get_venue_for_screen(screen, db)
+        _ensure_show_is_active(show)
+        _ensure_venue_is_active(venue)
 
-        if not show:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Show not found",
-            )
-
-        # 2. Fetch screen and venue
-        screen_result = await db.execute(
-            select(Screen).where(Screen.id == schedule_data.screen_id)
-        )
-        screen = screen_result.scalar_one_or_none()
-
-        if not screen:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Screen not found",
-            )
-
-        venue_result = await db.execute(
-            select(Venue).where(Venue.id == screen.venue_id)
-        )
-        venue = venue_result.scalar_one_or_none()
-
-        # 3. Calculate end_time based on show duration
         end_time = schedule_data.start_time + timedelta(minutes=show.duration_minutes)
+        _validate_schedule_window(schedule_data.start_time, end_time, venue)
 
-        # 4. CONSTRAINT: Validate venue operating hours
-        start_time_of_day = schedule_data.start_time.time()
-        end_time_of_day = end_time.time()
-
-        if start_time_of_day < venue.opening_time:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Schedule start time "
-                    f"({start_time_of_day}) is before venue opening time "
-                    f"({venue.opening_time})"
-                ),
-            )
-
-        if end_time_of_day > venue.closing_time:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Schedule end time "
-                    f"({end_time_of_day}) is after venue closing time "
-                    f"({venue.closing_time})"
-                ),
-            )
-
-        # 5. Create schedule
-        # PostgreSQL exclusion constraint will automatically prevent overlapping schedules
         new_schedule = Schedule(
             show_id=schedule_data.show_id,
             screen_id=schedule_data.screen_id,
@@ -376,12 +690,82 @@ async def create_schedule(
         )
 
 
+@schedules_router.patch("/{schedule_id}", response_model=ScheduleResponse)
+async def update_schedule(
+    schedule_id: int,
+    schedule_data: ScheduleUpdate,
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing schedule (ADMIN only)"""
+    try:
+        result = await db.execute(select(Schedule).where(Schedule.id == schedule_id))
+        schedule = result.scalar_one_or_none()
+        if not schedule:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Schedule not found",
+            )
+
+        payload = schedule_data.model_dump(exclude_unset=True)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided for update",
+            )
+
+        show_id = payload.get("show_id", schedule.show_id)
+        screen_id = payload.get("screen_id", schedule.screen_id)
+        start_time = payload.get("start_time", schedule.start_time)
+
+        show = await _get_show_or_404(show_id, db)
+        screen = await _get_screen_or_404(screen_id, db)
+        venue = await _get_venue_for_screen(screen, db)
+        _ensure_show_is_active(show)
+        _ensure_venue_is_active(venue)
+
+        end_time = start_time + timedelta(minutes=show.duration_minutes)
+        _validate_schedule_window(start_time, end_time, venue)
+
+        schedule.show_id = show_id
+        schedule.screen_id = screen_id
+        schedule.start_time = start_time
+        schedule.end_time = end_time
+
+        await db.commit()
+        await db.refresh(schedule)
+        logger.info("Schedule updated: %s by admin %s", schedule.id, current_user["user_id"])
+        return schedule
+
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        await db.rollback()
+        if "no_overlapping_schedules" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Schedule conflicts with existing schedule on this screen",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error",
+        )
+    except Exception as e:
+        logger.error(f"Error updating schedule: {str(e)}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update schedule",
+        )
+
+
 @schedules_router.get("/venue/{venue_id}", response_model=List[ScheduleWithDetails])
 async def get_venue_schedules(
     venue_id: int,
     from_date: datetime = Query(None),
     to_date: datetime = Query(None),
     show_id: int = Query(None),
+    include_cancelled: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all schedules for a venue (PUBLIC)"""
@@ -403,6 +787,10 @@ async def get_venue_schedules(
             .join(Show, Schedule.show_id == Show.id)
             .where(Venue.id == venue_id)
         )
+
+        if not include_cancelled:
+            query = query.where(Venue.status == VenueStatus.ACTIVE.value)
+            query = query.where(Show.status == ShowStatus.ACTIVE.value)
 
         # Add date filters if provided
         if from_date:

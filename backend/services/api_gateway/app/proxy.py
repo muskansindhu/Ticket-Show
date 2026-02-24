@@ -15,6 +15,11 @@ async def proxy_request(method: str, url: str, **kwargs):
             except Exception:
                 detail = e.response.text
 
+            # Normalize proxied FastAPI error payloads like {"detail": "..."}
+            # so clients receive a plain message instead of nested detail objects.
+            if isinstance(detail, dict) and set(detail.keys()) == {"detail"}:
+                detail = detail["detail"]
+
             raise HTTPException(
                 status_code=e.response.status_code,
                 detail=detail,

@@ -7,8 +7,10 @@ from sqlalchemy import and_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.schemas import BookingCreate, BookingResponse, BookingStatus
+from shared.schemas import ShowStatus, VenueStatus
 from shared.utils import setup_logger
 from .database import get_db
+from .kafka_handler import publish_refund_initiated, publish_refund_notification
 from .models import Booking
 
 logger = setup_logger(__name__)
@@ -21,7 +23,7 @@ async def lock_seats(
     seat_ids: List[int],
     lock_duration_minutes: int = 10,
 ):
-    """Lock seats for a screen using SELECT FOR UPDATE with row-level locking"""
+    """Lock seats for a screen using row-level lock checks."""
     try:
         lock_until = datetime.now(timezone.utc) + timedelta(minutes=lock_duration_minutes)
         query = text(
@@ -54,8 +56,13 @@ async def lock_seats(
         return False, []
 
 
-async def release_seats(db: AsyncSession, screen_id: int, seat_ids: List[int]):
-    """Release locked seats for a screen"""
+async def release_seats(
+    db: AsyncSession,
+    screen_id: int,
+    seat_ids: List[int],
+    commit: bool = True,
+):
+    """Release locked seats for a screen."""
     try:
         query = text(
             """
@@ -73,22 +80,79 @@ async def release_seats(db: AsyncSession, screen_id: int, seat_ids: List[int]):
                 "screen_id": screen_id,
             },
         )
-        await db.commit()
+        if commit:
+            await db.commit()
     except Exception as e:
         logger.error(f"Error releasing seats: {str(e)}", exc_info=True)
         await db.rollback()
 
 
+async def _get_screen_id_for_schedule(db: AsyncSession, schedule_id: int) -> int | None:
+    schedule_query = text("SELECT screen_id FROM events.schedules WHERE id = :schedule_id")
+    schedule_result = await db.execute(schedule_query, {"schedule_id": schedule_id})
+    schedule_row = schedule_result.fetchone()
+    if not schedule_row:
+        return None
+    return schedule_row[0]
+
+
+async def _publish_refund_events(event: dict):
+    try:
+        await publish_refund_initiated(event)
+        await publish_refund_notification(event)
+    except RuntimeError:
+        # Tests can invoke routes without service startup hooks.
+        logger.warning("Kafka producer not initialized; skipping refund events")
+
+
+async def _cancel_bookings(
+    bookings: List[Booking],
+    db: AsyncSession,
+    reason: str,
+    initiated_by: str,
+) -> int:
+    cancelled_count = 0
+
+    for booking in bookings:
+        if booking.status not in {
+            BookingStatus.PENDING.value,
+            BookingStatus.CONFIRMED.value,
+        }:
+            continue
+
+        screen_id = await _get_screen_id_for_schedule(db, booking.schedule_id)
+        if screen_id:
+            await release_seats(db, screen_id, booking.seat_ids, commit=False)
+
+        booking.status = BookingStatus.CANCELLED.value
+        correlation_id = str(uuid.uuid4())
+        refund_event = {
+            "booking_id": booking.id,
+            "user_id": booking.user_id,
+            "amount": float(booking.total_amount),
+            "correlation_id": correlation_id,
+            "reason": reason,
+            "initiated_by": initiated_by,
+            "initiated_at": datetime.utcnow().isoformat(),
+        }
+        await _publish_refund_events(refund_event)
+        cancelled_count += 1
+
+    if cancelled_count > 0:
+        await db.commit()
+
+    return cancelled_count
+
+
 @router.post("", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     booking_data: BookingCreate,
-    user_id: int,  # This would come from JWT token in production
+    user_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new booking with seat locking (using schedule_id)"""
+    """Create a new booking with seat locking (using schedule_id)."""
     correlation_id = str(uuid.uuid4())
     try:
-        # Check for idempotency
         result = await db.execute(
             select(Booking).where(Booking.idempotency_key == booking_data.idempotency_key)
         )
@@ -96,12 +160,14 @@ async def create_booking(
         if existing_booking:
             logger.info(f"Idempotent request detected: {booking_data.idempotency_key}")
             return existing_booking
-        # Validate schedule
+
         schedule_query = text(
             """
-            SELECT s.id, s.screen_id, sh.price
+            SELECT s.id, s.screen_id, sh.price, sh.status, v.status
             FROM events.schedules s
             JOIN events.shows sh ON s.show_id = sh.id
+            JOIN events.screens sc ON s.screen_id = sc.id
+            JOIN events.venues v ON sc.venue_id = v.id
             WHERE s.id = :schedule_id
             """
         )
@@ -112,10 +178,21 @@ async def create_booking(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Schedule not found",
             )
-        schedule_id, screen_id, show_price = schedule_row
+
+        schedule_id, screen_id, show_price, show_status, venue_status = schedule_row
+        if show_status != ShowStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot book a cancelled show",
+            )
+        if venue_status != VenueStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot book in an inactive venue",
+            )
+
         total_amount = float(show_price) * len(booking_data.seat_ids)
-        # Lock seats for the screen
-        success, locked_seat_ids = await lock_seats(
+        success, _ = await lock_seats(
             db,
             screen_id,
             booking_data.seat_ids,
@@ -126,6 +203,7 @@ async def create_booking(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="One or more seats are not available",
             )
+
         expires_at = datetime.utcnow() + timedelta(minutes=10)
         new_booking = Booking(
             idempotency_key=booking_data.idempotency_key,
@@ -162,10 +240,10 @@ async def create_booking(
 
 @router.get("/", response_model=List[BookingResponse])
 async def get_user_bookings(
-    user_id: int, 
+    user_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all bookings for a user"""
+    """Get all bookings for a user."""
     try:
         result = await db.execute(
             select(Booking)
@@ -185,10 +263,10 @@ async def get_user_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking(
     booking_id: int,
-    user_id: int,  
+    user_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get booking by ID"""
+    """Get booking by ID."""
     try:
         result = await db.execute(
             select(Booking).where(
@@ -218,10 +296,10 @@ async def get_booking(
 @router.get("/schedule/{schedule_id}/seats")
 async def get_schedule_seats(
     schedule_id: int,
-    user_id: int | None = None,  
+    user_id: int | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get seat availability for a schedule"""
+    """Get seat availability for a schedule."""
     try:
         schedule_query = text(
             "SELECT screen_id FROM events.schedules WHERE id = :schedule_id"
@@ -295,17 +373,16 @@ async def get_schedule_seats(
 @router.delete("/{booking_id}")
 async def cancel_booking(
     booking_id: int,
-    user_id: int,  
+    user_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Cancel a booking and release seats"""
+    """Cancel a booking and initiate refund processing."""
     try:
         result = await db.execute(
             select(Booking).where(
                 and_(
                     Booking.id == booking_id,
                     Booking.user_id == user_id,
-                    Booking.status == BookingStatus.PENDING.value,
                 )
             )
         )
@@ -313,24 +390,23 @@ async def cancel_booking(
         if not booking:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Booking not found or cannot be cancelled",
+                detail="Booking not found",
             )
-        # Release seats
-        # Get screen_id from schedule
-        schedule_query = text("SELECT screen_id FROM events.schedules WHERE id = :schedule_id")
-        schedule_result = await db.execute(schedule_query, {"schedule_id": booking.schedule_id})
-        schedule_row = schedule_result.fetchone()
-        if not schedule_row:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Schedule not found for booking",
-            )
-        screen_id = schedule_row[0]
-        await release_seats(db, screen_id, booking.seat_ids)
-        booking.status = BookingStatus.FAILED.value
-        await db.commit()
-        logger.info(f"Booking cancelled: {booking_id}")
-        return {"message": "Booking cancelled successfully"}
+
+        cancelled_count = await _cancel_bookings(
+            bookings=[booking],
+            db=db,
+            reason="User cancelled booking",
+            initiated_by="USER",
+        )
+        if cancelled_count == 0:
+            return {"message": "Booking is already cancelled or not refundable"}
+
+        logger.info("Booking cancelled by user: %s", booking_id)
+        return {
+            "message": "Booking cancelled successfully. Refund initiated.",
+            "booking_id": booking_id,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -339,6 +415,93 @@ async def cancel_booking(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to cancel booking",
+        )
+
+
+@router.post("/internal/cancel-by-show/{show_id}")
+async def cancel_bookings_by_show(
+    show_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel bookings for all schedules associated with a cancelled show."""
+    try:
+        result = await db.execute(
+            text(
+                """
+                SELECT b.id
+                FROM bookings.bookings b
+                JOIN events.schedules s ON s.id = b.schedule_id
+                WHERE s.show_id = :show_id
+                """
+            ),
+            {"show_id": show_id},
+        )
+        booking_ids = [row[0] for row in result.fetchall()]
+        if not booking_ids:
+            return {"cancelled_bookings": 0}
+
+        bookings_result = await db.execute(
+            select(Booking).where(Booking.id.in_(booking_ids))
+        )
+        bookings = bookings_result.scalars().all()
+
+        cancelled_count = await _cancel_bookings(
+            bookings=bookings,
+            db=db,
+            reason=f"Show {show_id} cancelled by admin",
+            initiated_by="ADMIN",
+        )
+        return {"cancelled_bookings": cancelled_count}
+    except Exception as e:
+        logger.error("Error cancelling show bookings: %s", str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel show bookings",
+        )
+
+
+@router.post("/internal/cancel-by-venue/{venue_id}")
+async def cancel_bookings_by_venue(
+    venue_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel bookings for all schedules under an inactive venue."""
+    try:
+        result = await db.execute(
+            text(
+                """
+                SELECT b.id
+                FROM bookings.bookings b
+                JOIN events.schedules s ON s.id = b.schedule_id
+                JOIN events.screens sc ON sc.id = s.screen_id
+                WHERE sc.venue_id = :venue_id
+                """
+            ),
+            {"venue_id": venue_id},
+        )
+        booking_ids = [row[0] for row in result.fetchall()]
+        if not booking_ids:
+            return {"cancelled_bookings": 0}
+
+        bookings_result = await db.execute(
+            select(Booking).where(Booking.id.in_(booking_ids))
+        )
+        bookings = bookings_result.scalars().all()
+
+        cancelled_count = await _cancel_bookings(
+            bookings=bookings,
+            db=db,
+            reason=f"Venue {venue_id} marked inactive by admin",
+            initiated_by="ADMIN",
+        )
+        return {"cancelled_bookings": cancelled_count}
+    except Exception as e:
+        logger.error("Error cancelling venue bookings: %s", str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to cancel venue bookings",
         )
 
 

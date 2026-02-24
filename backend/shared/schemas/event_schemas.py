@@ -1,7 +1,18 @@
 from datetime import datetime, time
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field, validator
+
+
+class VenueStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
+class ShowStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
 
 
 # Show Schemas
@@ -17,6 +28,7 @@ class ShowCreate(BaseModel):
 class ShowResponse(BaseModel):
     id: int
     title: str
+    status: ShowStatus
     duration_minutes: int
     price: int
     description: str
@@ -26,6 +38,16 @@ class ShowResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ShowUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    status: Optional[ShowStatus] = None
+    duration_minutes: Optional[int] = Field(None, gt=0)
+    price: Optional[int] = Field(None, gt=0)
+    description: Optional[str] = Field(None, min_length=32)
+    language: Optional[str] = Field(None, max_length=50)
+    rating: Optional[str] = Field(None, max_length=10)
 
 
 # Venue Schemas
@@ -45,6 +67,7 @@ class VenueCreate(BaseModel):
 class VenueResponse(BaseModel):
     id: int
     name: str
+    status: VenueStatus
     location: str
     opening_time: time
     closing_time: time
@@ -52,6 +75,14 @@ class VenueResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class VenueUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    status: Optional[VenueStatus] = None
+    location: Optional[str] = Field(None, min_length=1, max_length=500)
+    opening_time: Optional[time] = None
+    closing_time: Optional[time] = None
 
 
 # Screen Schemas
@@ -70,6 +101,11 @@ class ScreenResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ScreenUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    capacity: Optional[int] = Field(None, gt=0)
 
 
 # Schedule Schemas
@@ -96,6 +132,18 @@ class ScheduleResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ScheduleUpdate(BaseModel):
+    show_id: Optional[int] = None
+    screen_id: Optional[int] = None
+    start_time: Optional[datetime] = None
+
+    @validator("start_time")
+    def validate_start_time(cls, v):
+        if v is not None and v < datetime.utcnow():
+            raise ValueError("start_time cannot be in the past")
+        return v
 
 
 class ScheduleWithDetails(BaseModel):
