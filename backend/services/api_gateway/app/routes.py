@@ -1,6 +1,7 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, Query, status
+import httpx
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -16,6 +17,7 @@ from shared.schemas import (
     WalletResponse,
 )
 from shared.schemas.event_schemas import (
+    SearchResponse,
     ScheduleCreate,
     ScheduleResponse,
     ScheduleWithDetails,
@@ -44,6 +46,7 @@ screens_router = APIRouter(prefix="/screens", tags=["screens"])
 schedules_router = APIRouter(prefix="/schedules", tags=["schedules"])
 bookings_router = APIRouter(prefix="/bookings", tags=["bookings"])
 payments_router = APIRouter(prefix="/payments", tags=["payments"])
+search_router = APIRouter(prefix="/search", tags=["search"])
 
 
 # ==================== AUTH ROUTES ====================
@@ -111,6 +114,68 @@ async def create_show(
     )
 
 
+@shows_router.post("/{show_id}/poster", response_model=ShowResponse)
+async def upload_show_poster(
+    show_id: int,
+    poster: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    payload = await poster.read()
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Poster file is empty",
+        )
+    return await proxy_request(
+        "POST",
+        f"{settings.EVENT_SERVICE_URL}/shows/{show_id}/poster",
+        files={
+            "poster": (
+                poster.filename or "poster.jpg",
+                payload,
+                poster.content_type or "application/octet-stream",
+            )
+        },
+        headers={"Authorization": f"Bearer {credentials.credentials}"},
+        timeout=30.0,
+    )
+
+
+@shows_router.get("/posters/{filename}")
+async def get_show_poster(filename: str):
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"{settings.EVENT_SERVICE_URL}/shows/posters/{filename}",
+                timeout=20.0,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = "Failed to fetch poster"
+            try:
+                payload = exc.response.json()
+                if isinstance(payload, dict) and payload.get("detail"):
+                    detail = payload["detail"]
+            except Exception:
+                if exc.response.text:
+                    detail = exc.response.text
+            raise HTTPException(
+                status_code=exc.response.status_code,
+                detail=detail,
+            )
+        except httpx.RequestError:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Service unavailable",
+            )
+
+    return Response(
+        content=response.content,
+        media_type=response.headers.get("content-type", "application/octet-stream"),
+    )
+
+
 @shows_router.get("/", response_model=List[ShowResponse])
 async def get_shows(
     skip: int = Query(0, ge=0),
@@ -143,10 +208,18 @@ async def get_shows_no_slash(
 
 
 @shows_router.get("/{show_id}/venues", response_model=List[VenueResponse])
-async def get_show_venues(show_id: int):
+async def get_show_venues(
+    show_id: int,
+    city: str | None = Query(None, min_length=1, max_length=100),
+):
+    params = {}
+    normalized_city = city.strip() if city else ""
+    if normalized_city:
+        params["city"] = normalized_city
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/shows/{show_id}/venues",
+        params=params,
         timeout=10.0,
     )
 
@@ -203,15 +276,20 @@ async def get_venues(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     include_inactive: bool = Query(False),
+    city: str | None = Query(None, min_length=1, max_length=100),
 ):
+    params = {
+        "skip": skip,
+        "limit": limit,
+        "include_inactive": include_inactive,
+    }
+    normalized_city = city.strip() if city else ""
+    if normalized_city:
+        params["city"] = normalized_city
     return await proxy_request(
         "GET",
         f"{settings.EVENT_SERVICE_URL}/venues/",
-        params={
-            "skip": skip,
-            "limit": limit,
-            "include_inactive": include_inactive,
-        },
+        params=params,
         timeout=10.0,
     )
 
@@ -221,11 +299,13 @@ async def get_venues_no_slash(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     include_inactive: bool = Query(False),
+    city: str | None = Query(None, min_length=1, max_length=100),
 ):
     return await get_venues(
         skip=skip,
         limit=limit,
         include_inactive=include_inactive,
+        city=city,
     )
 
 
@@ -434,6 +514,28 @@ async def make_payment(
         timeout=10.0,
     )
 
+
+@payments_router.post("/webhook")
+async def dodo_webhook(request: Request):
+    body = await request.body()
+    signature = request.headers.get("webhook-signature") or request.headers.get("x-webhook-signature")
+    webhook_id = request.headers.get("webhook-id")
+    webhook_timestamp = request.headers.get("webhook-timestamp")
+    headers = {"content-type": "application/json"}
+    if signature:
+        headers["webhook-signature"] = signature
+    if webhook_id:
+        headers["webhook-id"] = webhook_id
+    if webhook_timestamp:
+        headers["webhook-timestamp"] = webhook_timestamp
+    return await proxy_request(
+        "POST",
+        f"{settings.PAYMENT_SERVICE_URL}/payments/webhook",
+        content=body,
+        headers=headers,
+        timeout=10.0,
+    )
+
 @payments_router.get("/booking/{booking_id}", response_model=PaymentResponse)
 async def get_payment_by_booking(
     booking_id: int,
@@ -457,5 +559,35 @@ async def get_payment(
         "GET",
         f"{settings.PAYMENT_SERVICE_URL}/payments/{payment_id}",
         params={"user_id": current_user["user_id"]},
+        timeout=10.0,
+    )
+
+
+# ==================== SEARCH ROUTES ====================
+
+@search_router.get("", response_model=SearchResponse)
+async def search(
+    q: str = Query(..., min_length=1, max_length=120),
+    city: str | None = Query(None, min_length=1, max_length=100),
+    limit: int = Query(8, ge=1, le=50),
+):
+    params = {"q": q, "limit": limit}
+    normalized_city = city.strip() if city else ""
+    if normalized_city:
+        params["city"] = normalized_city
+    return await proxy_request(
+        "GET",
+        f"{settings.SEARCH_SERVICE_URL}/search",
+        params=params,
+        timeout=10.0,
+    )
+
+
+@search_router.get("/cities", response_model=List[str])
+async def search_cities(limit: int = Query(100, ge=1, le=500)):
+    return await proxy_request(
+        "GET",
+        f"{settings.SEARCH_SERVICE_URL}/search/cities",
+        params={"limit": limit},
         timeout=10.0,
     )

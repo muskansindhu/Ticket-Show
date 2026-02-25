@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from shared.utils import setup_logger
 from .config import settings
@@ -20,6 +21,22 @@ async def lifespan(app: FastAPI):
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS auth.users
+                ADD COLUMN IF NOT EXISTS city VARCHAR(100)
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS idx_users_city
+                ON auth.users(city)
+                """
+            )
+        )
 
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 

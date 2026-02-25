@@ -103,7 +103,7 @@ export default function Seats() {
     : "";
   const scheduleYear = scheduleDate ? scheduleDate.getFullYear() : "";
   const heroPoster =
-    posters[(Number(show?.id || scheduleId) || 0) % posters.length];
+    show?.poster_url || posters[(Number(show?.id || scheduleId) || 0) % posters.length];
 
   return (
     <section className="page seat-page">

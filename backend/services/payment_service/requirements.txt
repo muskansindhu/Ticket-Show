@@ -10,3 +10,4 @@ pydantic[email]
 bcrypt==4.0.1
 passlib[bcrypt]
 httpx
+dodopayments[webhooks]>=0.1.0

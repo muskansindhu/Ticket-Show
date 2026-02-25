@@ -48,10 +48,12 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             )
 
         hashed_password = get_password_hash(user_data.password)
+        city = user_data.city.strip() if user_data.city else ""
         new_user = User(
             email=user_data.email,
             password_hash=hashed_password,
             username=user_data.username,
+            city=city or None,
         )
 
         db.add(new_user)
@@ -68,6 +70,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
             "id": new_user.id,
             "email": new_user.email,
             "username": new_user.username,
+            "city": new_user.city,
             "wallet_balance": 0,
             "created_at": new_user.created_at,
         }
@@ -96,6 +99,12 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        next_city = user_data.city.strip() if user_data.city else ""
+        if next_city and next_city != (user.city or ""):
+            user.city = next_city
+            await db.commit()
+            await db.refresh(user)
 
         access_token = create_access_token(
             data={
@@ -127,6 +136,7 @@ async def get_me(current_user: User = Depends(get_current_user), db: AsyncSessio
         "id": current_user.id,
         "email": current_user.email,
         "username": current_user.username,
+        "city": current_user.city,
         "wallet_balance": float(wallet.current_amount),
         "created_at": current_user.created_at,
     }

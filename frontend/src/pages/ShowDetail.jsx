@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiRequest, formatCurrency } from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
 import { formatTime12Hour, formatTimeRange } from "../utils/time.js";
+import { useAuth } from "../context/auth.jsx";
 
 function toDateKey(value) {
   const date = new Date(value);
@@ -30,6 +31,7 @@ function buildDateRow(days = 7) {
 }
 
 export default function ShowDetail() {
+  const { user } = useAuth();
   const { showId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -60,14 +62,15 @@ export default function ShowDetail() {
   useEffect(() => {
     async function loadVenues() {
       try {
-        const data = await apiRequest(`/shows/${showId}/venues`);
+        const city = user?.city ? `?city=${encodeURIComponent(user.city)}` : "";
+        const data = await apiRequest(`/shows/${showId}/venues${city}`);
         setVenues(data);
       } catch (err) {
         setError(err.message);
       }
     }
     loadVenues();
-  }, [showId]);
+  }, [showId, user?.city]);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,7 +199,11 @@ export default function ShowDetail() {
           <Icon name="location" size={16} /> Venues showing this title
         </h3>
         {venues.length === 0 ? (
-          <p className="muted">No venues are showing this title right now.</p>
+          <p className="muted">
+            {user?.city
+              ? `No venues in ${user.city} are showing this title right now.`
+              : "No venues are showing this title right now."}
+          </p>
         ) : (
           <div className="show-venues-list">
             {venues.map((venue, index) => {

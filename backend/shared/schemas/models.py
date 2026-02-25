@@ -27,6 +27,7 @@ class PaymentMethod(str, Enum):
     UPI = "UPI"
     NETBANKING = "NETBANKING"
     WALLET = "WALLET"
+    DODO = "DODO"
 
 
 class WalletTransactionType(str, Enum):
@@ -39,17 +40,20 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     username: str = Field(..., min_length=1)
+    city: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    city: Optional[str] = Field(None, min_length=1, max_length=100)
 
 
 class UserResponse(BaseModel):
     id: int
     email: str
     username: str
+    city: Optional[str] = None
     wallet_balance: Optional[float] = None
     created_at: Optional[datetime] = None
     
@@ -164,6 +168,7 @@ class PaymentResponse(BaseModel):
     status: PaymentStatus
     payment_method: PaymentMethod
     transaction_id: str
+    checkout_url: Optional[str] = None
     correlation_id: str
     created_at: datetime
     updated_at: datetime
@@ -189,6 +194,17 @@ class RefundInitiatedEvent(BaseModel):
     initiated_by: str
     initiated_at: datetime
     user_email: Optional[EmailStr] = None
+
+
+class RefundCompletedEvent(BaseModel):
+    booking_id: int
+    user_id: int
+    amount: float
+    correlation_id: str
+    refunded_at: datetime
+    user_email: Optional[EmailStr] = None
+    refund_id: Optional[str] = None
+    payment_method: Optional[str] = None
 
 
 class WalletTransactionResponse(BaseModel):

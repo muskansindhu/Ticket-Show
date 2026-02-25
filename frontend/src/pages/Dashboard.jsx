@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest, formatCurrency } from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
+import { useAuth } from "../context/auth.jsx";
 import poster1 from "../assets/posters/poster-1.jpg";
 import poster2 from "../assets/posters/poster-2.jpg";
 import poster3 from "../assets/posters/poster-3.jpg";
@@ -27,8 +28,13 @@ const genres = ["Action", "Drama", "Sci-Fi", "Thriller", "Romance"];
 const formats = ["2D", "IMAX", "4DX", "Dolby"];
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [shows, setShows] = useState([]);
   const [error, setError] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState({ shows: [], venues: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,6 +48,43 @@ export default function Dashboard() {
     }
     load();
   }, []);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResults({ shows: [], venues: [] });
+      setSearchLoading(false);
+      setSearchError("");
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const searchParams = new URLSearchParams({
+          q: query,
+          limit: "8",
+        });
+        if (user?.city) {
+          searchParams.set("city", user.city);
+        }
+        const data = await apiRequest(`/search?${searchParams.toString()}`);
+        setSearchResults({
+          shows: Array.isArray(data?.shows) ? data.shows : [],
+          venues: Array.isArray(data?.venues) ? data.venues : [],
+        });
+        setSearchError("");
+      } catch (err) {
+        setSearchError(err.message);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchQuery, user?.city]);
 
   const languages = Array.from(
     new Set(shows.map((show) => show.language || "English")),
@@ -121,9 +164,59 @@ export default function Dashboard() {
             <p className="eyebrow">
               <Icon name="film" size={14} /> Now showing
             </p>
-            <h2>Movies In Your City</h2>
+            <h2>
+              {user?.city ? `Movies in ${user.city}` : "Movies In Your City"}
+            </h2>
           </div>
         </header>
+
+        <div className="form-card" style={{ marginBottom: "1rem" }}>
+          <label>
+            Search shows and venues
+            <div className="input-wrap">
+              <Icon name="search" size={16} className="input-icon" />
+              <input
+                type="search"
+                placeholder={user?.city ? `Search in ${user.city}` : "Search by show or venue"}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+            </div>
+          </label>
+          {searchLoading ? <p className="muted">Searching...</p> : null}
+          {searchError ? <p className="notice">{searchError}</p> : null}
+          {searchQuery.trim() ? (
+            <div className="dashboard-filter-grid" style={{ marginTop: "0.75rem" }}>
+              {searchResults.shows.map((show) => (
+                <button
+                  key={`show-result-${show.id}`}
+                  type="button"
+                  className="dashboard-filter-chip"
+                  onClick={() => navigate(`/shows/${show.id}`)}
+                >
+                  <Icon name="film" size={12} /> {show.title}
+                </button>
+              ))}
+              {searchResults.venues.map((venue) => (
+                <button
+                  key={`venue-result-${venue.id}`}
+                  type="button"
+                  className="dashboard-filter-chip"
+                  onClick={() =>
+                    navigate("/venues", { state: { preferredVenueId: venue.id } })
+                  }
+                >
+                  <Icon name="location" size={12} /> {venue.name} ({venue.city})
+                </button>
+              ))}
+              {!searchLoading &&
+              searchResults.shows.length === 0 &&
+              searchResults.venues.length === 0 ? (
+                <p className="muted">No search results found.</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
         {/* {languages.length > 0 ? (
           <div className="dashboard-lang-strip">
@@ -140,6 +233,7 @@ export default function Dashboard() {
         <div className="dashboard-grid">
           {shows.map((show, index) => {
             const poster = posters[index % posters.length];
+            const posterSrc = show.poster_url || poster;
             const language = show.language || "English";
             return (
               <article
@@ -149,9 +243,9 @@ export default function Dashboard() {
                 onClick={() =>
                   navigate(`/shows/${show.id}`, { state: { show } })
                 }
-              >
+                >
                 <div className="dashboard-movie-poster">
-                  <img src={poster} alt={show.title} loading="lazy" />
+                  <img src={posterSrc} alt={show.title} loading="lazy" />
                   <div className="dashboard-movie-meta">
                     <span className="icon-inline">
                       <Icon name="star" size={12} /> {show.rating || "NR"}

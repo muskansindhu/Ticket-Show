@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiRequest, formatCurrency } from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
 import { formatTime12Hour, formatTimeRange } from "../utils/time.js";
+import { useAuth } from "../context/auth.jsx";
 import poster1 from "../assets/posters/poster-1.jpg";
 import poster2 from "../assets/posters/poster-2.jpg";
 import poster3 from "../assets/posters/poster-3.jpg";
@@ -45,11 +46,18 @@ function buildDateRow(days = 7) {
   });
 }
 
-async function fetchAllVenues() {
+async function fetchAllVenues(city) {
   let skip = 0;
   const result = [];
   while (true) {
-    const query = `?skip=${skip}&limit=${VENUE_PAGE_SIZE}`;
+    const search = new URLSearchParams({
+      skip: String(skip),
+      limit: String(VENUE_PAGE_SIZE),
+    });
+    if (city) {
+      search.set("city", city);
+    }
+    const query = `?${search.toString()}`;
     let batch;
     try {
       batch = await apiRequest(`/venues/${query}`);
@@ -68,6 +76,8 @@ async function fetchAllVenues() {
 }
 
 export default function Venues() {
+  const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [venues, setVenues] = useState([]);
   const [shows, setShows] = useState([]);
@@ -85,7 +95,7 @@ export default function Venues() {
       setLoadingVenues(true);
       try {
         const [venuesData, showsData] = await Promise.all([
-          fetchAllVenues(),
+          fetchAllVenues(user?.city),
           apiRequest("/shows/?limit=100")
         ]);
         if (!active) return;
@@ -106,7 +116,16 @@ export default function Venues() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user?.city]);
+
+  useEffect(() => {
+    const preferredVenueId = location.state?.preferredVenueId;
+    if (!preferredVenueId || selectedVenue) return;
+    const match = venues.find((venue) => Number(venue.id) === Number(preferredVenueId));
+    if (match) {
+      handleVenueSelect(match);
+    }
+  }, [location.state, selectedVenue, venues]);
 
   const groupedMovies = useMemo(() => {
     const map = new Map();
@@ -211,7 +230,11 @@ export default function Venues() {
         <div className="venue-browser-copy">
           <p className="eyebrow"><Icon name="location" size={14} /> Browse by venue</p>
           <h2>Choose A Venue</h2>
-          <p className="muted">Tap a venue to load all movies and show schedules.</p>
+          <p className="muted">
+            {user?.city
+              ? `Showing venues in ${user.city}.`
+              : "Tap a venue to load all movies and show schedules."}
+          </p>
         </div>
       </div>
 
@@ -230,6 +253,7 @@ export default function Venues() {
             <div>
               <h3>{venue.name}</h3>
               <p className="muted icon-row"><Icon name="location" size={12} /> {venue.location}</p>
+              <p className="muted">City: {venue.city || "--"}</p>
             </div>
             <div className="venue-timings">
               <p className="muted venue-timings-label">Timings:</p>
@@ -270,11 +294,12 @@ export default function Venues() {
                   show_duration: movie.duration
                 });
                 const poster = posters[(Number(show?.id) || index) % posters.length];
+                const posterSrc = show?.poster_url || poster;
                 return (
                   <article className="show-card venue-movie-card reveal" style={{ "--delay": `${index * 0.03}s` }} key={movie.key}>
                     <div className="venue-movie-head">
                       <div className="venue-movie-poster">
-                        <img src={poster} alt={movie.title} loading="lazy" />
+                        <img src={posterSrc} alt={movie.title} loading="lazy" />
                       </div>
                       <div className="venue-movie-details">
                         <h3>{movie.title}</h3>

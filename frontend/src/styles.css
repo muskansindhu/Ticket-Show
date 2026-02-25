@@ -910,6 +910,13 @@ select:-webkit-autofill:focus {
   gap: 10px;
 }
 
+.booking-refund-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 12px;

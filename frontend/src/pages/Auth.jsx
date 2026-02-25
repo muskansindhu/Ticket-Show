@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.jsx";
+import { apiRequest } from "../apiClient.js";
 import Icon from "../components/Icon.jsx";
 import poster1 from "../assets/posters/poster-1.jpg";
 import poster2 from "../assets/posters/poster-5.jpg";
 import poster3 from "../assets/posters/poster-6.jpg";
 
-const initialRegister = { email: "", username: "", password: "" };
-const initialLogin = { email: "", password: "" };
+const initialRegister = { email: "", username: "", password: "", city: "" };
+const initialLogin = { email: "", password: "", city: "" };
 
 const posters = [poster1, poster2, poster3];
 
@@ -20,6 +21,7 @@ export default function AuthPage() {
   const [notice, setNotice] = useState("");
   const [showLoginPass, setShowLoginPass] = useState(false);
   const [showRegisterPass, setShowRegisterPass] = useState(false);
+  const [cityOptions, setCityOptions] = useState([]);
 
   useEffect(() => {
     if (token) {
@@ -27,21 +29,51 @@ export default function AuthPage() {
     }
   }, [token, navigate]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCities() {
+      try {
+        const data = await apiRequest("/search/cities?limit=250");
+        if (!cancelled && Array.isArray(data)) {
+          setCityOptions(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setCityOptions([]);
+        }
+      }
+    }
+
+    loadCities();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function handleLogin(event) {
     event.preventDefault();
     setNotice("");
-    await login(loginForm);
+    await login({
+      ...loginForm,
+      city: loginForm.city.trim(),
+    });
   }
 
   async function handleRegister(event) {
     event.preventDefault();
     setNotice("");
-    const ok = await register(registerForm);
+    const city = registerForm.city.trim();
+    const ok = await register({
+      ...registerForm,
+      city: city || undefined,
+    });
     if (ok) {
       setNotice("Account created. Please sign in.");
       setLoginForm({
         email: registerForm.email,
         password: registerForm.password,
+        city: registerForm.city,
       });
       setRegisterForm(initialRegister);
       setMode("login");
@@ -112,6 +144,29 @@ export default function AuthPage() {
                 </div>
               </label>
               <label>
+                City
+                <div className="input-wrap">
+                  <Icon name="location" size={16} className="input-icon" />
+                  <input
+                    list="city-options-login"
+                    placeholder="Enter your city"
+                    value={loginForm.city}
+                    onChange={(event) =>
+                      setLoginForm({
+                        ...loginForm,
+                        city: event.target.value,
+                      })
+                    }
+                    required
+                  />
+                  <datalist id="city-options-login">
+                    {cityOptions.map((city) => (
+                      <option key={`login-city-${city}`} value={city} />
+                    ))}
+                  </datalist>
+                </div>
+              </label>
+              <label>
                 Password
                 <div className="input-wrap">
                   <Icon name="lock" size={16} className="input-icon" />
@@ -175,6 +230,28 @@ export default function AuthPage() {
                     }
                     required
                   />
+                </div>
+              </label>
+              <label>
+                City
+                <div className="input-wrap">
+                  <Icon name="location" size={16} className="input-icon" />
+                  <input
+                    list="city-options-register"
+                    placeholder="Optional city"
+                    value={registerForm.city}
+                    onChange={(event) =>
+                      setRegisterForm({
+                        ...registerForm,
+                        city: event.target.value,
+                      })
+                    }
+                  />
+                  <datalist id="city-options-register">
+                    {cityOptions.map((city) => (
+                      <option key={`register-city-${city}`} value={city} />
+                    ))}
+                  </datalist>
                 </div>
               </label>
               <label>

@@ -8,6 +8,7 @@ from .routes import (
     bookings_router,
     payments_router,
     schedules_router,
+    search_router,
     screens_router,
     shows_router,
     venues_router,
@@ -37,6 +38,7 @@ app.include_router(screens_router)
 app.include_router(schedules_router)
 app.include_router(bookings_router)
 app.include_router(payments_router)
+app.include_router(search_router)
 
 
 @app.get("/health")

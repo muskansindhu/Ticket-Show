@@ -1,7 +1,10 @@
+from pathlib import Path
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from shared.utils import setup_logger
 from .config import settings
@@ -20,6 +23,45 @@ async def lifespan(app: FastAPI):
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS events.shows
+                ADD COLUMN IF NOT EXISTS poster_url VARCHAR(1000)
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS events.venues
+                ADD COLUMN IF NOT EXISTS city VARCHAR(100)
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                UPDATE events.venues
+                SET city = COALESCE(
+                    NULLIF(trim(split_part(location, ',', 2)), ''),
+                    NULLIF(trim(split_part(location, ',', 1)), ''),
+                    'Unknown'
+                )
+                WHERE city IS NULL
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS idx_venues_city
+                ON events.venues(city)
+                """
+            )
+        )
+
+    Path(settings.POSTER_UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 

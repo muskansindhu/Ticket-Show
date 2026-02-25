@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta
+from pathlib import Path
+import mimetypes
+import uuid
 from typing import List
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,6 +46,8 @@ shows_router = APIRouter(prefix="/shows", tags=["shows"])
 venues_router = APIRouter(prefix="/venues", tags=["venues"])
 screens_router = APIRouter(prefix="/screens", tags=["screens"])
 schedules_router = APIRouter(prefix="/schedules", tags=["schedules"])
+
+ALLOWED_POSTER_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 async def _get_show_or_404(show_id: int, db: AsyncSession):
@@ -137,6 +143,16 @@ async def _cancel_related_bookings(path: str):
         )
 
 
+def _get_poster_path(filename: str) -> Path:
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid poster filename",
+        )
+    return Path(settings.POSTER_UPLOAD_DIR) / safe_name
+
+
 # ==================== SHOWS (ADMIN ONLY) ====================
 
 @shows_router.post("/", response_model=ShowResponse, status_code=status.HTTP_201_CREATED)
@@ -170,6 +186,76 @@ async def create_show(
         )
 
 
+@shows_router.post("/{show_id}/poster", response_model=ShowResponse)
+async def upload_show_poster(
+    show_id: int,
+    poster: UploadFile = File(...),
+    current_user: dict = Depends(rbac.require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    show = await _get_show_or_404(show_id, db)
+    content_type = (poster.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Poster must be an image file",
+        )
+
+    extension = Path(poster.filename or "").suffix.lower()
+    if extension not in ALLOWED_POSTER_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Allowed poster formats: .jpg, .jpeg, .png, .webp",
+        )
+
+    payload = await poster.read()
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Poster file is empty",
+        )
+    if len(payload) > settings.MAX_POSTER_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Poster file size exceeds 5 MB limit",
+        )
+
+    posters_dir = Path(settings.POSTER_UPLOAD_DIR)
+    posters_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"show-{show.id}-{uuid.uuid4().hex[:12]}{extension}"
+    poster_path = posters_dir / filename
+    poster_path.write_bytes(payload)
+
+    old_poster_url = show.poster_url
+    show.poster_url = f"/shows/posters/{filename}"
+    await db.commit()
+    await db.refresh(show)
+
+    if old_poster_url and old_poster_url.startswith("/shows/posters/"):
+        old_filename = old_poster_url.rsplit("/", 1)[-1]
+        old_path = _get_poster_path(old_filename)
+        if old_path.exists():
+            old_path.unlink()
+
+    logger.info("Poster uploaded for show %s by admin %s", show.id, current_user["user_id"])
+    return show
+
+
+@shows_router.get("/posters/{filename}")
+async def get_show_poster(filename: str):
+    poster_path = _get_poster_path(filename)
+    if not poster_path.exists() or not poster_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Poster not found",
+        )
+    media_type, _ = mimetypes.guess_type(str(poster_path))
+    return FileResponse(
+        poster_path,
+        media_type=media_type or "application/octet-stream",
+    )
+
+
 @shows_router.get("/", response_model=List[ShowResponse])
 async def get_shows(
     skip: int = Query(0, ge=0),
@@ -199,11 +285,12 @@ async def get_shows(
 @shows_router.get("/{show_id}/venues", response_model=List[VenueResponse])
 async def get_show_venues(
     show_id: int,
+    city: str | None = Query(None, min_length=1, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get venues that are showing a given show (PUBLIC)"""
     try:
-        result = await db.execute(
+        query = (
             select(Venue)
             .join(Screen, Screen.venue_id == Venue.id)
             .join(Schedule, Schedule.screen_id == Screen.id)
@@ -213,6 +300,10 @@ async def get_show_venues(
             .where(Venue.status == VenueStatus.ACTIVE.value)
             .distinct(Venue.id)
         )
+        normalized_city = city.strip() if city else ""
+        if normalized_city:
+            query = query.where(Venue.city.ilike(normalized_city))
+        result = await db.execute(query)
         venues = result.scalars().all()
         return venues
 
@@ -307,10 +398,17 @@ async def create_venue(
 ):
     """Create a new venue (ADMIN only)"""
     try:
+        city = venue_data.city.strip()
+        if not city:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="city cannot be empty",
+            )
         new_venue = Venue(
             name=venue_data.name,
             status=VenueStatus.ACTIVE.value,
             location=venue_data.location,
+            city=city,
             opening_time=venue_data.opening_time,
             closing_time=venue_data.closing_time,
         )
@@ -337,6 +435,7 @@ async def get_venues(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     include_inactive: bool = Query(False),
+    city: str | None = Query(None, min_length=1, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
     """Get all venues (PUBLIC)"""
@@ -344,6 +443,9 @@ async def get_venues(
         query = select(Venue)
         if not include_inactive:
             query = query.where(Venue.status == VenueStatus.ACTIVE.value)
+        normalized_city = city.strip() if city else ""
+        if normalized_city:
+            query = query.where(Venue.city.ilike(normalized_city))
         result = await db.execute(query.offset(skip).limit(limit))
         venues = result.scalars().all()
         return venues
@@ -361,12 +463,14 @@ async def get_venues_no_slash(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     include_inactive: bool = Query(False),
+    city: str | None = Query(None, min_length=1, max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
     return await get_venues(
         skip=skip,
         limit=limit,
         include_inactive=include_inactive,
+        city=city,
         db=db,
     )
 
@@ -407,6 +511,14 @@ async def update_venue(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="closing_time cannot be null",
             )
+        if "city" in payload:
+            next_city = str(payload["city"] or "").strip()
+            if not next_city:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="city cannot be empty",
+                )
+            payload["city"] = next_city
 
         opening_time = (
             payload["opening_time"]

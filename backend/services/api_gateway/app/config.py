@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     EVENT_SERVICE_URL: str = "http://localhost:8002"
     BOOKING_SERVICE_URL: str = "http://localhost:8003"
     PAYMENT_SERVICE_URL: str = "http://localhost:8004"
+    SEARCH_SERVICE_URL: str = "http://localhost:8006"
 
     # JWT
     JWT_SECRET: str = "test-secret-key-for-jwt-generation"

@@ -19,10 +19,10 @@ export default function Payment() {
     ? formatTime12Hour(schedule.start_time)
     : "--";
 
-  const [form, setForm] = useState({
+  const [form] = useState({
     booking_id: booking?.id || "",
     amount,
-    payment_method: "CARD",
+    payment_method: "DODO",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ export default function Payment() {
     setLoading(true);
     setError("");
     try {
-      await apiRequest("/payments", {
+      const response = await apiRequest("/payments", {
         method: "POST",
         body: JSON.stringify({
           booking_id: Number(form.booking_id),
@@ -45,7 +45,11 @@ export default function Payment() {
           user_id: user?.id || 0,
         }),
       });
-      navigate("/", { replace: true });
+      if (response?.checkout_url) {
+        window.location.assign(response.checkout_url);
+        return;
+      }
+      navigate("/bookings", { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,32 +101,22 @@ export default function Payment() {
             </label>
           </div>
           <label>
-            Payment method
+            Payment provider
             <div className="input-wrap">
               <Icon name="wallet" size={16} className="input-icon" />
-              <select
-                value={form.payment_method}
-                onChange={(event) =>
-                  setForm({ ...form, payment_method: event.target.value })
-                }
-              >
-                <option value="CARD">Card</option>
-                <option value="UPI">UPI</option>
-                <option value="NETBANKING">Netbanking</option>
-                <option value="WALLET">Wallet</option>
-              </select>
+              <input type="text" value="Dodo Payments" readOnly />
             </div>
           </label>
           <div className="payment-trust muted">
             <span className="icon-row">
-              <Icon name="lock" size={13} /> PCI-compliant secure checkout
+              <Icon name="lock" size={13} /> Dodo secure hosted checkout
             </span>
             <span className="icon-row">
-              <Icon name="ticket" size={13} /> Instant booking confirmation
+              <Icon name="ticket" size={13} /> Booking confirms after webhook
             </span>
           </div>
           <button className="primary" type="submit" disabled={loading}>
-            {loading ? "Processing..." : `Pay ${formatCurrency(form.amount)}`}
+            {loading ? "Processing..." : `Proceed to pay ${formatCurrency(form.amount)}`}
           </button>
           {error ? <p className="notice">{error}</p> : null}
         </form>
@@ -156,7 +150,7 @@ export default function Payment() {
             <strong>{formatCurrency(amount)}</strong>
           </div>
           <p className="muted">
-            After payment, you will be redirected to your dashboard.
+            You will be redirected to Dodo checkout and then back to your bookings.
           </p>
         </div>
       </div>

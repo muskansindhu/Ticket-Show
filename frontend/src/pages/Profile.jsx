@@ -134,6 +134,10 @@ export default function Profile() {
             <strong>{user?.email || "--"}</strong>
           </div>
           <div className="profile-detail-item">
+            <span className="section-title">City</span>
+            <strong>{user?.city || "--"}</strong>
+          </div>
+          <div className="profile-detail-item">
             <span className="section-title">Joined</span>
             <strong>{formatDate(user?.created_at)}</strong>
           </div>

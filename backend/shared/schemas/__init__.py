@@ -2,6 +2,7 @@ from .models import (
     BookingCreate,
     BookingConfirmedEvent,
     BookingCreatedEvent,
+    RefundCompletedEvent,
     RefundInitiatedEvent,
     BookingFailedEvent,
     BookingResponse,
@@ -22,6 +23,11 @@ from .models import (
     WalletTransactionType,
 )
 from .event_schemas import ShowStatus, VenueStatus
+from .event_schemas import (
+    SearchResponse,
+    SearchShowResult,
+    SearchVenueResult,
+)
 
 __all__ = [
     "UserCreate",
@@ -34,6 +40,7 @@ __all__ = [
     "BookingCreatedEvent",
     "BookingConfirmedEvent",
     "BookingSuccessfulEvent",
+    "RefundCompletedEvent",
     "RefundInitiatedEvent",
     "BookingFailedEvent",
     "PaymentCompletedEvent",
@@ -47,4 +54,7 @@ __all__ = [
     "WalletTransactionType",
     "ShowStatus",
     "VenueStatus",
+    "SearchShowResult",
+    "SearchVenueResult",
+    "SearchResponse",
 ]

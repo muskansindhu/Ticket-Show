@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     username VARCHAR(255) NOT NULL,
+    city VARCHAR(100),
     role VARCHAR(10) NOT NULL DEFAULT 'USER' CHECK (role IN ('ADMIN', 'USER')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
 
 CREATE INDEX idx_users_email ON auth.users(email);
 CREATE INDEX idx_users_role ON auth.users(role);
+CREATE INDEX idx_users_city ON auth.users(city);
 
 CREATE TABLE IF NOT EXISTS auth.wallets (
     id SERIAL PRIMARY KEY,
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS events.shows (
     price INTEGER NOT NULL,
     language VARCHAR(50),
     rating VARCHAR(10),
+    poster_url VARCHAR(1000),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -65,6 +68,7 @@ CREATE TABLE IF NOT EXISTS events.venues (
     name VARCHAR(255) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'INACTIVE')),
     location VARCHAR(500) NOT NULL,
+    city VARCHAR(100) NOT NULL,
     opening_time TIME NOT NULL,
     closing_time TIME NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -200,11 +204,11 @@ ON CONFLICT DO NOTHING;
 
 
 -- Insert sample venues
-INSERT INTO events.venues (name, location, opening_time, closing_time, status) VALUES
-('Cineplex Downtown', '123 Main St, Downtown', '09:00:00', '23:00:00', 'ACTIVE'),
-('IMAX Theater', '456 Broadway Ave', '10:00:00', '22:00:00', 'ACTIVE'),
-('Multiplex Mall', '789 Shopping Center', '08:00:00', '23:59:59', 'ACTIVE'),
-('Old Town Cinema (Inactive)', '321 Retro Blvd', '10:00:00', '20:00:00', 'INACTIVE')
+INSERT INTO events.venues (name, location, city, opening_time, closing_time, status) VALUES
+('Cineplex Downtown', '123 Main St, Downtown', 'Toronto', '09:00:00', '23:00:00', 'ACTIVE'),
+('IMAX Theater', '456 Broadway Ave', 'Toronto', '10:00:00', '22:00:00', 'ACTIVE'),
+('Multiplex Mall', '789 Shopping Center', 'Vancouver', '08:00:00', '23:59:59', 'ACTIVE'),
+('Old Town Cinema (Inactive)', '321 Retro Blvd', 'Calgary', '10:00:00', '20:00:00', 'INACTIVE')
 ON CONFLICT DO NOTHING;
 
 -- Insert sample screens

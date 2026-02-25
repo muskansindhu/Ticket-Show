@@ -19,6 +19,7 @@ class Show(Base):
     price = Column(Integer, nullable=False)
     language = Column(String(50))
     rating = Column(String(10))
+    poster_url = Column(String(1000), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -35,6 +36,7 @@ class Venue(Base):
     name = Column(String(255), nullable=False)
     status = Column(String(20), nullable=False, default="ACTIVE", index=True)
     location = Column(String(500), nullable=False)
+    city = Column(String(100), nullable=False, index=True)
     opening_time = Column(Time, nullable=False)
     closing_time = Column(Time, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -4,7 +4,12 @@ from email.message import EmailMessage
 
 import aiosmtplib
 
-from shared.schemas import BookingFailedEvent, BookingSuccessfulEvent, RefundInitiatedEvent
+from shared.schemas import (
+    BookingFailedEvent,
+    BookingSuccessfulEvent,
+    RefundCompletedEvent,
+    RefundInitiatedEvent,
+)
 from shared.utils import KafkaConsumerClient, setup_logger
 from .config import settings
 
@@ -84,7 +89,7 @@ async def handle_booking_successful(message: dict):
 
             Awesome news — your booking went through and you’re all set. We can’t wait to see you at the show.
             For your records, your booking ID is {event.booking_id} and the schedule ID is {event.schedule_id}.
-            You grabbed {len(event.seat_ids)} seat(s) and the total comes to ${event.total_amount}.
+            You grabbed {len(event.seat_ids)} seat(s) and the total comes to ₹{event.total_amount}.
 
             If anything looks off or you have a quick question, just hit reply and we’ll jump in.
 
@@ -135,7 +140,7 @@ async def handle_booking_failed(message: dict):
             f"""
             Hi there,
 
-            We hit a snag and couldn’t complete your booking this time — sorry about that.
+            Sorry, we were not able to process your booking this time.
             For reference, your booking ID is {event.booking_id}. The reason we saw was: {event.reason}.
 
             If you want to try again, go for it. And if it keeps happening, just reply here and we’ll sort it out with you.
@@ -186,10 +191,11 @@ async def handle_refund_initiated(message: dict):
             f"""
             Hi there,
 
-            Your booking {event.booking_id} has been cancelled and we have initiated a refund of ${event.amount}.
+            Your booking {event.booking_id} has been cancelled and we have initiated a refund of ₹{event.amount}.
             Reason: {event.reason}
 
-            The amount will be credited to your Ticket Show wallet shortly.
+            If this payment was made via DODO, the refund will be sent to your original payment method (not your Ticket Show wallet).
+            We will notify you again once the refund is completed.
 
             Thanks,
             The TicketShow Team
@@ -199,6 +205,55 @@ async def handle_refund_initiated(message: dict):
     except Exception as e:
         logger.error(
             f"Error handling refund initiated event: {str(e)}",
+            exc_info=True,
+        )
+        raise
+
+
+async def handle_refund_completed(message: dict):
+    """Handle refund completed event."""
+    try:
+        event = RefundCompletedEvent(**message)
+        logger.info(
+            "Processing refund completed event for booking %s",
+            event.booking_id,
+            extra={"correlation_id": event.correlation_id},
+        )
+
+        to_email = _resolve_recipient_email(event)
+        if not to_email:
+            raise ValueError(
+                "No recipient email available. Provide user_email in the event or set "
+                "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
+            )
+
+        refund_ref = f" (Refund ID: {event.refund_id})" if event.refund_id else ""
+        payment_method = str(event.payment_method or "").upper()
+        if payment_method == "DODO":
+            destination_text = "to your original payment method"
+        elif payment_method:
+            destination_text = "to your Ticket Show wallet"
+        else:
+            destination_text = "to your original payment method"
+        method_text = f" through {payment_method}" if payment_method else ""
+
+        subject = "Refund completed for your Ticket Show booking"
+        body = textwrap.dedent(
+            f"""
+            Hi there,
+
+            Your refund of ₹s{event.amount} for booking {event.booking_id} has been completed {destination_text}{method_text}{refund_ref}.
+
+            If you have any issues, reply to this email and we will help you out.
+
+            Thanks,
+            The TicketShow Team
+            """
+        ).strip()
+        await send_email_notification(to_email=to_email, subject=subject, body=body)
+    except Exception as e:
+        logger.error(
+            f"Error handling refund completed event: {str(e)}",
             exc_info=True,
         )
         raise
@@ -230,13 +285,21 @@ async def start_kafka_consumers():
         max_retries=3,
         retry_delay=1,
     )
+    refund_completed_consumer = KafkaConsumerClient(
+        bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
+        group_id="notification-service-refund-completed-group",
+        topics=["notification.refund_completed"],
+        max_retries=3,
+        retry_delay=1,
+    )
 
     await successful_consumer.start()
     await failed_consumer.start()
     await refund_consumer.start()
+    await refund_completed_consumer.start()
 
     logger.info(
-        "Kafka consumers started for booking.successful, booking.failed, and notification.refund_initiated"
+        "Kafka consumers started for booking.successful, booking.failed, notification.refund_initiated, and notification.refund_completed"
     )
 
     # Start consuming in parallel
@@ -244,6 +307,7 @@ async def start_kafka_consumers():
         successful_consumer.consume(handle_booking_successful),
         failed_consumer.consume(handle_booking_failed),
         refund_consumer.consume(handle_refund_initiated),
+        refund_completed_consumer.consume(handle_refund_completed),
     )
 
 

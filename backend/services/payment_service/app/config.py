@@ -11,6 +11,11 @@ class Settings(BaseSettings):
 
     # Payment
     PAYMENT_PROCESSING_DELAY_SECONDS: int = 2
+    DODO_PAYMENTS_API_KEY: str = ""
+    DODO_PAYMENTS_ENVIRONMENT: str = "test_mode"
+    DODO_PAYMENTS_PRODUCT_ID: str = ""
+    DODO_PAYMENTS_RETURN_URL: str = "http://localhost:5173/bookings"
+    DODO_PAYMENTS_WEBHOOK_KEY: str = ""
 
     # Service
     SERVICE_NAME: str = "payment-service"

@@ -60,9 +60,12 @@ export default function Admin() {
     language: "",
     rating: "",
   });
+  const [showPosterFile, setShowPosterFile] = useState(null);
+  const [showPosterInputKey, setShowPosterInputKey] = useState(0);
   const [venueForm, setVenueForm] = useState({
     name: "",
     location: "",
+    city: "",
     opening_time: "",
     closing_time: "",
   });
@@ -75,6 +78,7 @@ export default function Admin() {
   const [venueEditForm, setVenueEditForm] = useState({
     name: "",
     location: "",
+    city: "",
     opening_time: "",
     closing_time: "",
   });
@@ -225,6 +229,7 @@ export default function Admin() {
     setVenueEditForm({
       name: venue.name,
       location: venue.location,
+      city: venue.city || "",
       opening_time: normalizeTimeForInput(venue.opening_time),
       closing_time: normalizeTimeForInput(venue.closing_time),
     });
@@ -235,6 +240,7 @@ export default function Admin() {
     setVenueEditForm({
       name: "",
       location: "",
+      city: "",
       opening_time: "",
       closing_time: "",
     });
@@ -246,17 +252,19 @@ export default function Admin() {
 
     const nextName = venueEditForm.name.trim();
     const nextLocation = venueEditForm.location.trim();
+    const nextCity = venueEditForm.city.trim();
     const nextOpening = venueEditForm.opening_time.trim();
     const nextClosing = venueEditForm.closing_time.trim();
 
-    if (!nextName || !nextLocation || !nextOpening || !nextClosing) {
-      setMessage("Venue name, location, opening time, and closing time are required.");
+    if (!nextName || !nextLocation || !nextCity || !nextOpening || !nextClosing) {
+      setMessage("Venue name, location, city, opening time, and closing time are required.");
       return;
     }
 
     const payload = {};
     if (nextName !== venue.name) payload.name = nextName;
     if (nextLocation !== venue.location) payload.location = nextLocation;
+    if (nextCity !== (venue.city || "")) payload.city = nextCity;
     if (nextOpening !== normalizeTimeForInput(venue.opening_time)) {
       payload.opening_time = nextOpening;
     }
@@ -434,7 +442,7 @@ export default function Admin() {
     event.preventDefault();
     setMessage("");
     try {
-      await apiRequest("/shows/", {
+      const createdShow = await apiRequest("/shows/", {
         method: "POST",
         body: JSON.stringify({
           ...showForm,
@@ -445,6 +453,20 @@ export default function Admin() {
         }),
       });
 
+      let posterUploadError = "";
+      if (showPosterFile && createdShow?.id) {
+        try {
+          const formData = new FormData();
+          formData.append("poster", showPosterFile);
+          await apiRequest(`/shows/${createdShow.id}/poster`, {
+            method: "POST",
+            body: formData,
+          });
+        } catch (err) {
+          posterUploadError = err.message;
+        }
+      }
+
       setShowForm({
         title: "",
         duration_minutes: "",
@@ -453,8 +475,14 @@ export default function Admin() {
         language: "",
         rating: "",
       });
+      setShowPosterFile(null);
+      setShowPosterInputKey((current) => current + 1);
       await loadAdminData();
-      setMessage("Show created.");
+      if (posterUploadError) {
+        setMessage(`Show created, but poster upload failed: ${posterUploadError}`);
+      } else {
+        setMessage(showPosterFile ? "Show created with poster." : "Show created.");
+      }
     } catch (err) {
       setMessage(err.message);
     }
@@ -472,6 +500,7 @@ export default function Admin() {
       setVenueForm({
         name: "",
         location: "",
+        city: "",
         opening_time: "",
         closing_time: "",
       });
@@ -573,6 +602,17 @@ export default function Admin() {
               />
             </label>
             <label className="admin-field">
+              <span>City</span>
+              <input
+                placeholder="Enter city (e.g. Toronto)"
+                value={venueForm.city}
+                onChange={(event) =>
+                  setVenueForm({ ...venueForm, city: event.target.value })
+                }
+                required
+              />
+            </label>
+            <label className="admin-field">
               <span>Opening Time</span>
               <input
                 type="time"
@@ -627,6 +667,7 @@ export default function Admin() {
                     <p className="muted icon-row">
                       <Icon name="location" size={12} /> {venue.location}
                     </p>
+                    <p className="muted">City: {venue.city || "--"}</p>
                   </div>
                   <div className="admin-venue-summary-actions">
                     <div className="admin-venue-chips">
@@ -707,6 +748,20 @@ export default function Admin() {
                           setVenueEditForm((prev) => ({
                             ...prev,
                             location: event.target.value,
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label className="admin-field">
+                      <span>City</span>
+                      <input
+                        placeholder="Update city"
+                        value={venueEditForm.city}
+                        onChange={(event) =>
+                          setVenueEditForm((prev) => ({
+                            ...prev,
+                            city: event.target.value,
                           }))
                         }
                         required
@@ -1027,10 +1082,41 @@ export default function Admin() {
                 }
               />
             </label>
+            <label className="admin-field">
+              <span>Poster (Optional)</span>
+              <input
+                key={showPosterInputKey}
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  if (!file) {
+                    setShowPosterFile(null);
+                    return;
+                  }
+                  if (!file.type.startsWith("image/")) {
+                    setShowPosterFile(null);
+                    setMessage("Poster must be an image file.");
+                    event.target.value = "";
+                    return;
+                  }
+                  if (file.size > 5 * 1024 * 1024) {
+                    setShowPosterFile(null);
+                    setMessage("Poster size must be 5 MB or less.");
+                    event.target.value = "";
+                    return;
+                  }
+                  setShowPosterFile(file);
+                }}
+              />
+            </label>
             <button className="primary" type="submit">
               Create show
             </button>
           </div>
+          {showPosterFile ? (
+            <p className="muted">Selected poster: {showPosterFile.name}</p>
+          ) : null}
         </form>
 
         <div className="admin-show-list">
@@ -1051,6 +1137,11 @@ export default function Admin() {
                       <Icon name="credit" size={12} />{" "}
                       {formatCurrency(show.price)}
                     </span>
+                    {show.poster_url ? (
+                      <span className="meta-chip">
+                        <Icon name="film" size={12} /> Poster uploaded
+                      </span>
+                    ) : null}
                     <span className={`status-pill ${String(show.status || "ACTIVE").toLowerCase()}`}>
                       {show.status || "ACTIVE"}
                     </span>

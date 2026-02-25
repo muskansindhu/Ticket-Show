@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET: str = "test-secret-key-for-jwt-generation"
     BOOKING_SERVICE_URL: str = "http://booking-service:8000"
+    POSTER_UPLOAD_DIR: str = "/app/uploads/posters"
+    MAX_POSTER_SIZE_BYTES: int = 5 * 1024 * 1024
 
     # Service
     SERVICE_NAME: str = "event-service"

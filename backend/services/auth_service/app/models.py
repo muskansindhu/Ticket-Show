@@ -20,6 +20,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     username = Column(String(255), nullable=False)
+    city = Column(String(100), nullable=True, index=True)
     role = Column(SQLEnum(UserRole), nullable=False, default=UserRole.USER)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

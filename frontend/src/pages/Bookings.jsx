@@ -26,6 +26,38 @@ function isNotFoundError(err) {
   return message.includes("not found") || message.includes("404");
 }
 
+function getRefundDestinationNote(paymentDetail, bookingDetail) {
+  if (!paymentDetail) return "";
+
+  const paymentMethod = String(paymentDetail.payment_method || "").toUpperCase();
+  const paymentStatus = String(paymentDetail.status || "").toUpperCase();
+  const bookingStatus = String(bookingDetail?.status || "").toUpperCase();
+  const isRefundFlow =
+    paymentStatus === "REFUND_INITIATED" ||
+    paymentStatus === "REFUNDED" ||
+    (bookingStatus === "CANCELLED" && paymentStatus === "COMPLETED");
+
+  if (!isRefundFlow) return "";
+
+  if (paymentMethod === "DODO") {
+    if (paymentStatus === "REFUNDED") {
+      return "Refund sent to your original payment method.";
+    }
+    if (paymentStatus === "REFUND_INITIATED") {
+      return "Refund is in progress to your original payment method.";
+    }
+    return "Booking is cancelled. Any refund will be sent to your original payment method.";
+  }
+
+  if (paymentStatus === "REFUNDED") {
+    return "Refund credited to your Ticket Show wallet.";
+  }
+  if (paymentStatus === "REFUND_INITIATED") {
+    return "Refund is in progress to your Ticket Show wallet.";
+  }
+  return "Booking is cancelled. Refund will be processed based on your payment method.";
+}
+
 export default function Bookings() {
   const [bookings, setBookings] = useState([]);
   const [expandedBookingId, setExpandedBookingId] = useState(null);
@@ -134,6 +166,7 @@ export default function Bookings() {
           const detail = detailsByBookingId[booking.id];
           const bookingDetail = detail?.booking || booking;
           const paymentDetail = detail?.payment || null;
+          const refundDestinationNote = getRefundDestinationNote(paymentDetail, bookingDetail);
           const seatIds = Array.isArray(bookingDetail.seat_ids) ? bookingDetail.seat_ids : [];
           const isLoadingDetails = loadingDetailsId === booking.id;
 
@@ -211,6 +244,9 @@ export default function Bookings() {
                     ) : (
                       <p className="muted">Payment not completed yet.</p>
                     )}
+                    {refundDestinationNote ? (
+                      <p className="booking-refund-note">{refundDestinationNote}</p>
+                    ) : null}
                   </div>
                   {canCancelBooking(bookingDetail.status || booking.status) ? (
                     <div className="booking-actions-row">

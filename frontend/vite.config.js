@@ -12,7 +12,8 @@ export default defineConfig({
       "/screens": "http://localhost:8000",
       "/schedules": "http://localhost:8000",
       "/bookings": "http://localhost:8000",
-      "/payments": "http://localhost:8000"
+      "/payments": "http://localhost:8000",
+      "/search": "http://localhost:8000"
     }
   }
 });

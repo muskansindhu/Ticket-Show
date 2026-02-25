@@ -4,7 +4,7 @@ import { useAuth } from "../context/auth.jsx";
 
 export default function Payments() {
   const { user } = useAuth();
-  const [form, setForm] = useState({ bookingId: "", amount: "", paymentMethod: "CARD" });
+  const [form, setForm] = useState({ bookingId: "", amount: "", paymentMethod: "DODO" });
   const [payment, setPayment] = useState(null);
   const [error, setError] = useState("");
 
@@ -58,17 +58,10 @@ export default function Payments() {
             />
           </label>
           <label>
-            Payment method
-            <select
-              value={form.paymentMethod}
-              onChange={(event) => setForm({ ...form, paymentMethod: event.target.value })}
-            >
-              <option value="CARD">Card</option>
-              <option value="UPI">UPI</option>
-              <option value="NETBANKING">Netbanking</option>
-              <option value="WALLET">Wallet</option>
-            </select>
+            Payment provider
+            <input type="text" value="Dodo Payments" readOnly />
           </label>
+          <p className="muted">Card/UPI selection happens inside Dodo hosted checkout.</p>
           <button className="primary" type="submit">Confirm payment</button>
           {error ? <p className="notice">{error}</p> : null}
         </form>

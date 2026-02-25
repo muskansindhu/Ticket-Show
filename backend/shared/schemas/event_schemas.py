@@ -34,6 +34,7 @@ class ShowResponse(BaseModel):
     description: str
     language: Optional[str]
     rating: Optional[str]
+    poster_url: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -48,12 +49,14 @@ class ShowUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=32)
     language: Optional[str] = Field(None, max_length=50)
     rating: Optional[str] = Field(None, max_length=10)
+    poster_url: Optional[str] = Field(None, max_length=1000)
 
 
 # Venue Schemas
 class VenueCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     location: str = Field(..., min_length=1, max_length=500)
+    city: str = Field(..., min_length=1, max_length=100)
     opening_time: time
     closing_time: time
     
@@ -69,6 +72,7 @@ class VenueResponse(BaseModel):
     name: str
     status: VenueStatus
     location: str
+    city: str
     opening_time: time
     closing_time: time
     created_at: datetime
@@ -81,8 +85,34 @@ class VenueUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     status: Optional[VenueStatus] = None
     location: Optional[str] = Field(None, min_length=1, max_length=500)
+    city: Optional[str] = Field(None, min_length=1, max_length=100)
     opening_time: Optional[time] = None
     closing_time: Optional[time] = None
+
+
+class SearchShowResult(BaseModel):
+    id: int
+    title: str
+    duration_minutes: int
+    price: int
+    language: Optional[str]
+    rating: Optional[str]
+
+
+class SearchVenueResult(BaseModel):
+    id: int
+    name: str
+    location: str
+    city: str
+    opening_time: time
+    closing_time: time
+
+
+class SearchResponse(BaseModel):
+    query: str
+    city: Optional[str] = None
+    shows: list[SearchShowResult] = Field(default_factory=list)
+    venues: list[SearchVenueResult] = Field(default_factory=list)
 
 
 # Screen Schemas
