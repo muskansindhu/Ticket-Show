@@ -64,6 +64,7 @@ export default function Bookings() {
   const [detailsByBookingId, setDetailsByBookingId] = useState({});
   const [loadingDetailsId, setLoadingDetailsId] = useState(null);
   const [cancellingBookingId, setCancellingBookingId] = useState(null);
+  const [pendingCancelId, setPendingCancelId] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -120,7 +121,18 @@ export default function Bookings() {
     return status === "PENDING" || status === "CONFIRMED";
   }
 
-  async function handleCancelBooking(bookingId) {
+  function promptCancelBooking(bookingId) {
+    setPendingCancelId(bookingId);
+  }
+
+  function dismissCancelModal() {
+    setPendingCancelId(null);
+  }
+
+  async function confirmCancelBooking() {
+    const bookingId = pendingCancelId;
+    if (!bookingId) return;
+    setPendingCancelId(null);
     setError("");
     setCancellingBookingId(bookingId);
     try {
@@ -253,7 +265,7 @@ export default function Bookings() {
                       <button
                         className="ghost"
                         type="button"
-                        onClick={() => handleCancelBooking(booking.id)}
+                        onClick={() => promptCancelBooking(booking.id)}
                         disabled={cancellingBookingId === booking.id}
                       >
                         {cancellingBookingId === booking.id
@@ -268,6 +280,43 @@ export default function Bookings() {
           );
         })}
       </div>
+
+      {pendingCancelId !== null ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={dismissCancelModal}
+        >
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-booking-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="cancel-booking-title">Cancel Booking #{pendingCancelId}?</h3>
+            <p className="muted">
+              This will cancel your booking and initiate a refund if applicable.
+            </p>
+            <div className="confirm-modal-actions">
+              <button
+                className="ghost"
+                type="button"
+                onClick={dismissCancelModal}
+              >
+                Keep Booking
+              </button>
+              <button
+                className="primary danger-btn"
+                type="button"
+                onClick={confirmCancelBooking}
+              >
+                Cancel Booking
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

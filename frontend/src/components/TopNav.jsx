@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/auth.jsx";
 import Icon from "./Icon.jsx";
@@ -128,7 +129,7 @@ export default function TopNav({ items, variant = "user" }) {
           ) : null}
         </div>
       </div>
-      {logoutConfirmOpen ? (
+      {logoutConfirmOpen ? createPortal(
         <div
           className="modal-backdrop"
           role="presentation"
@@ -162,7 +163,8 @@ export default function TopNav({ items, variant = "user" }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       ) : null}
     </header>
   );

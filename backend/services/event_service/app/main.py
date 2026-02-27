@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from contextlib import asynccontextmanager
 
@@ -11,6 +10,7 @@ from .config import settings
 from .database import Base, engine
 from .kafka_handler import close_kafka_producer, init_kafka_producer
 from .routes import schedules_router, screens_router, shows_router, venues_router
+from .s3_client import init_s3
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
 
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
             )
         )
 
-    Path(settings.POSTER_UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+    init_s3()
 
     await init_kafka_producer()
 

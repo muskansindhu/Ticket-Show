@@ -1,12 +1,10 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-import mimetypes
 import uuid
 from typing import List
 
 import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +32,7 @@ from .config import settings
 from .database import get_db
 from .kafka_handler import publish_show_changed, publish_venue_changed
 from .models import Schedule, Screen, Seat, Show, Venue
+from .s3_client import delete_poster, upload_poster
 
 logger = setup_logger(__name__)
 
@@ -144,17 +143,7 @@ async def _cancel_related_bookings(path: str):
         )
 
 
-def _get_poster_path(filename: str) -> Path:
-    safe_name = Path(filename).name
-    if safe_name != filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid poster filename",
-        )
-    return Path(settings.POSTER_UPLOAD_DIR) / safe_name
-
-
-# ==================== SHOWS (ADMIN ONLY) ====================
+# ==================== SHOWS (ADMIN ONLY) ======================================
 
 @shows_router.post("/", response_model=ShowResponse, status_code=status.HTTP_201_CREATED)
 async def create_show(
@@ -232,40 +221,19 @@ async def upload_show_poster(
             detail="Poster file size exceeds 5 MB limit",
         )
 
-    posters_dir = Path(settings.POSTER_UPLOAD_DIR)
-    posters_dir.mkdir(parents=True, exist_ok=True)
     filename = f"show-{show.id}-{uuid.uuid4().hex[:12]}{extension}"
-    poster_path = posters_dir / filename
-    poster_path.write_bytes(payload)
+    poster_url = upload_poster(payload, filename, content_type)
 
     old_poster_url = show.poster_url
-    show.poster_url = f"/shows/posters/{filename}"
+    show.poster_url = poster_url
     await db.commit()
     await db.refresh(show)
 
-    if old_poster_url and old_poster_url.startswith("/shows/posters/"):
-        old_filename = old_poster_url.rsplit("/", 1)[-1]
-        old_path = _get_poster_path(old_filename)
-        if old_path.exists():
-            old_path.unlink()
+    if old_poster_url:
+        delete_poster(old_poster_url)
 
     logger.info("Poster uploaded for show %s by admin %s", show.id, current_user["user_id"])
     return show
-
-
-@shows_router.get("/posters/{filename}")
-async def get_show_poster(filename: str):
-    poster_path = _get_poster_path(filename)
-    if not poster_path.exists() or not poster_path.is_file():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Poster not found",
-        )
-    media_type, _ = mimetypes.guess_type(str(poster_path))
-    return FileResponse(
-        poster_path,
-        media_type=media_type or "application/octet-stream",
-    )
 
 
 @shows_router.get("/", response_model=List[ShowResponse])

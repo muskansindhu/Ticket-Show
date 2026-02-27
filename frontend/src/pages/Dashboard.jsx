@@ -172,12 +172,16 @@ export default function Dashboard() {
 
         <div className="form-card" style={{ marginBottom: "1rem" }}>
           <label>
-            Search shows and venues
+            Search shows, venues and decriptions
             <div className="input-wrap">
               <Icon name="search" size={16} className="input-icon" />
               <input
                 type="search"
-                placeholder={user?.city ? `Search in ${user.city}` : "Search by show or venue"}
+                placeholder={
+                  user?.city
+                    ? `Search in ${user.city}`
+                    : "Search by show or venue"
+                }
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
               />
@@ -186,7 +190,10 @@ export default function Dashboard() {
           {searchLoading ? <p className="muted">Searching...</p> : null}
           {searchError ? <p className="notice">{searchError}</p> : null}
           {searchQuery.trim() ? (
-            <div className="dashboard-filter-grid" style={{ marginTop: "0.75rem" }}>
+            <div
+              className="dashboard-filter-grid"
+              style={{ marginTop: "0.75rem" }}
+            >
               {searchResults.shows.map((show) => (
                 <button
                   key={`show-result-${show.id}`}
@@ -203,7 +210,9 @@ export default function Dashboard() {
                   type="button"
                   className="dashboard-filter-chip"
                   onClick={() =>
-                    navigate("/venues", { state: { preferredVenueId: venue.id } })
+                    navigate("/venues", {
+                      state: { preferredVenueId: venue.id },
+                    })
                   }
                 >
                   <Icon name="location" size={12} /> {venue.name} ({venue.city})
@@ -217,16 +226,6 @@ export default function Dashboard() {
             </div>
           ) : null}
         </div>
-
-        {/* {languages.length > 0 ? (
-          <div className="dashboard-lang-strip">
-            {languages.map((lang) => (
-              <span key={lang} className="meta-chip">
-                {lang}
-              </span>
-            ))}
-          </div>
-        ) : null} */}
 
         {error ? <p className="notice">{error}</p> : null}
 
@@ -243,7 +242,7 @@ export default function Dashboard() {
                 onClick={() =>
                   navigate(`/shows/${show.id}`, { state: { show } })
                 }
-                >
+              >
                 <div className="dashboard-movie-poster">
                   <img src={posterSrc} alt={show.title} loading="lazy" />
                   <div className="dashboard-movie-meta">
