@@ -64,8 +64,11 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
       JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
     networks:
       - ticket-show-network
@@ -207,9 +210,57 @@ services:
       - "8006:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # Elasticsearch
+  # =======================
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: ticket-show-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # ES Init (one-shot seeder)
+  # =======================
+  es-init:
+    build:
+      context: .
+      dockerfile: infrastructure/elasticsearch/Dockerfile
+    container_name: ticket-show-es-init
+    environment:
+      DATABASE_URL: postgresql://ticketshow:ticketshow123@postgres:5432/ticketshow
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
     networks:
       - ticket-show-network
 
@@ -290,3 +341,4 @@ volumes:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:
+  es_data:

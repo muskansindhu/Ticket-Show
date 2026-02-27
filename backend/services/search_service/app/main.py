@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from shared.utils import setup_logger
 from .config import settings
 from .database import engine
+from .elastic import close_es, init_es
+from .kafka_handler import run_consumers
 from .routes import router
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
@@ -14,8 +16,11 @@ logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("%s starting up...", settings.SERVICE_NAME)
+    await init_es()
+    run_consumers()
     yield
     logger.info("%s shutting down...", settings.SERVICE_NAME)
+    await close_es()
     await engine.dispose()
 
 

@@ -32,6 +32,7 @@ from shared.utils import setup_logger
 from shared.utils.rbac import create_rbac
 from .config import settings
 from .database import get_db
+from .kafka_handler import publish_show_changed, publish_venue_changed
 from .models import Schedule, Screen, Seat, Show, Venue
 
 logger = setup_logger(__name__)
@@ -176,6 +177,17 @@ async def create_show(
         await db.commit()
         await db.refresh(new_show)
         logger.info(f"Show created: {new_show.title} by admin {current_user['user_id']}")
+        await publish_show_changed({
+            "id": new_show.id,
+            "title": new_show.title,
+            "description": new_show.description,
+            "duration_minutes": new_show.duration_minutes,
+            "price": new_show.price,
+            "language": new_show.language,
+            "rating": new_show.rating,
+            "status": new_show.status,
+            "action": "created",
+        })
         return new_show
     except Exception as e:
         logger.error(f"Error creating show: {str(e)}", exc_info=True)
@@ -346,6 +358,17 @@ async def update_show(
         await db.commit()
         await db.refresh(show)
         logger.info("Show updated: %s by admin %s", show.title, current_user["user_id"])
+        await publish_show_changed({
+            "id": show.id,
+            "title": show.title,
+            "description": show.description,
+            "duration_minutes": show.duration_minutes,
+            "price": show.price,
+            "language": show.language,
+            "rating": show.rating,
+            "status": show.status,
+            "action": "updated",
+        })
         return show
     except HTTPException:
         raise
@@ -376,6 +399,12 @@ async def delete_show(
         )
         await db.commit()
         logger.info("Show cancelled: %s by admin %s", show.title, current_user["user_id"])
+        await publish_show_changed({
+            "id": show.id,
+            "title": show.title,
+            "status": ShowStatus.CANCELLED.value,
+            "action": "deleted",
+        })
         return {"detail": "Show cancelled successfully"}
     except HTTPException:
         raise
@@ -418,7 +447,16 @@ async def create_venue(
         await db.refresh(new_venue)
 
         logger.info(f"Venue created: {new_venue.name} by admin {current_user['user_id']}")
-
+        await publish_venue_changed({
+            "id": new_venue.id,
+            "name": new_venue.name,
+            "location": new_venue.location,
+            "city": new_venue.city,
+            "opening_time": str(new_venue.opening_time),
+            "closing_time": str(new_venue.closing_time),
+            "status": new_venue.status,
+            "action": "created",
+        })
         return new_venue
 
     except Exception as e:
@@ -550,6 +588,16 @@ async def update_venue(
         await db.commit()
         await db.refresh(venue)
         logger.info("Venue updated: %s by admin %s", venue.name, current_user["user_id"])
+        await publish_venue_changed({
+            "id": venue.id,
+            "name": venue.name,
+            "location": venue.location,
+            "city": venue.city,
+            "opening_time": str(venue.opening_time),
+            "closing_time": str(venue.closing_time),
+            "status": venue.status,
+            "action": "updated",
+        })
         return venue
     except HTTPException:
         raise
@@ -586,6 +634,12 @@ async def delete_venue(
         )
         await db.commit()
         logger.info("Venue inactivated: %s by admin %s", venue.name, current_user["user_id"])
+        await publish_venue_changed({
+            "id": venue.id,
+            "name": venue.name,
+            "status": VenueStatus.INACTIVE.value,
+            "action": "deleted",
+        })
         return {"detail": "Venue marked inactive successfully"}
     except HTTPException:
         raise
