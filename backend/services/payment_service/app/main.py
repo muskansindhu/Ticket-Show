@@ -8,6 +8,7 @@ from .config import settings
 from .database import Base, engine
 from .kafka_handler import close_kafka_producer, init_kafka_producer, run_consumers
 from .routes import router
+from .s3_client import init_s3
 
 logger = setup_logger(settings.SERVICE_NAME, settings.LOG_LEVEL)
 
@@ -25,6 +26,9 @@ async def lifespan(app: FastAPI):
     # Initialize Kafka producer
     await init_kafka_producer()
     run_consumers()
+
+    # Initialize S3 client for QR ticket uploads
+    init_s3()
 
     logger.info(f"{settings.SERVICE_NAME} started successfully")
 

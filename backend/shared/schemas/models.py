@@ -99,6 +99,10 @@ class BookingResponse(BaseModel):
     correlation_id: str
     created_at: datetime
     expires_at: datetime
+    ticket_qr_urls: Optional[List[str]] = None
+    seat_labels: Optional[List[dict]] = None
+    show_name: Optional[str] = None
+    show_time: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -147,6 +151,10 @@ class BookingSuccessfulEvent(BaseModel):
     total_amount: float
     correlation_id: str
     confirmed_at: datetime
+    ticket_qr_urls: Optional[List[str]] = None
+    seat_labels: Optional[List[dict]] = None
+    show_name: Optional[str] = None
+    show_time: Optional[str] = None
 
 
 class BookingFailedEvent(BaseModel):

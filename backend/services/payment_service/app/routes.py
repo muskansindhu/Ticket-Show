@@ -32,6 +32,7 @@ from .utils import (
     to_minor_units,
     to_positive_int,
 )
+from .qr_generator import generate_ticket_qrs
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -50,7 +51,7 @@ def _get_dodo_client():
 async def _fetch_booking(booking_id: int, user_id: int) -> dict:
     async with httpx.AsyncClient() as client:
         booking_resp = await client.get(
-            f"http://booking-service:8000/bookings/{booking_id}",
+            f"{settings.BOOKING_SERVICE_URL}/bookings/{booking_id}",
             params={"user_id": user_id},
             timeout=10.0,
         )
@@ -66,7 +67,7 @@ async def _update_booking_status(
 ) -> None:
     async with httpx.AsyncClient() as client:
         resp = await client.patch(
-            f"http://booking-service:8000/bookings/{booking_id}/status",
+            f"{settings.BOOKING_SERVICE_URL}/bookings/{booking_id}/status",
             json={"status": booking_status.value},
             params={"user_id": user_id},
             timeout=10.0,
@@ -75,6 +76,24 @@ async def _update_booking_status(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Failed to sync booking status",
+        )
+
+
+async def _save_qr_urls(
+    booking_id: int,
+    ticket_qr_urls: list[str],
+) -> None:
+    async with httpx.AsyncClient() as client:
+        resp = await client.patch(
+            f"{settings.BOOKING_SERVICE_URL}/bookings/{booking_id}/qr-urls",
+            json={"ticket_qr_urls": ticket_qr_urls},
+            timeout=10.0,
+        )
+    if resp.status_code >= 400:
+        logger.warning(
+            "Failed to save QR URLs for booking %s: %s",
+            booking_id,
+            resp.text,
         )
 
 
@@ -89,6 +108,7 @@ async def _publish_booking_success_event(
     payment: Payment,
     booking: dict,
     user_email: str | None,
+    ticket_qr_urls: list[str] | None = None,
 ) -> None:
     booking_success_event = {
         "booking_id": payment.booking_id,
@@ -99,6 +119,10 @@ async def _publish_booking_success_event(
         "total_amount": float(payment.amount),
         "correlation_id": payment.correlation_id,
         "confirmed_at": payment.updated_at.isoformat(),
+        "ticket_qr_urls": ticket_qr_urls,
+        "seat_labels": booking.get("seat_labels"),
+        "show_name": booking.get("show_name"),
+        "show_time": booking.get("show_time"),
     }
     await publish_booking_successful(booking_success_event)
 
@@ -426,8 +450,22 @@ async def dodo_webhook(
             await db.commit()
             await db.refresh(payment)
         await _update_booking_status(payment.booking_id, payment.user_id, BookingStatus.CONFIRMED)
+
+        ticket_qr_urls = None
         if not already_completed:
-            await _publish_booking_success_event(payment, booking, user_email)
+            try:
+                ticket_qr_urls = generate_ticket_qrs(
+                    booking_id=payment.booking_id,
+                    schedule_id=booking["schedule_id"],
+                    seat_ids=booking["seat_ids"],
+                    correlation_id=payment.correlation_id,
+                    seat_labels=booking.get("seat_labels"),
+                )
+                await _save_qr_urls(payment.booking_id, ticket_qr_urls)
+            except Exception as qr_err:
+                logger.error("QR generation failed for booking %s: %s", payment.booking_id, qr_err, exc_info=True)
+
+            await _publish_booking_success_event(payment, booking, user_email, ticket_qr_urls)
         return {"status": "processed", "result": "completed"}
 
     if "failed" in event_type or "cancelled" in event_type:

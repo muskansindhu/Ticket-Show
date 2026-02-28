@@ -66,8 +66,8 @@ services:
       JWT_SECRET: super-secret-key
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       S3_ENDPOINT_URL: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_BUCKET_NAME: ticket-show-posters
       S3_PUBLIC_URL: http://localhost:9000
     depends_on:
@@ -129,6 +129,11 @@ services:
       DODO_PAYMENTS_PRODUCT_ID: ${DODO_PAYMENTS_PRODUCT_ID}
       DODO_PAYMENTS_RETURN_URL: ${DODO_PAYMENTS_RETURN_URL:-http://localhost:5173/bookings}
       DODO_PAYMENTS_ENVIRONMENT: ${DODO_PAYMENTS_ENVIRONMENT:-test_mode}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ticket-show-posters
+      S3_PUBLIC_URL: http://localhost:9000
     depends_on:
       postgres:
         condition: service_healthy
@@ -158,6 +163,8 @@ services:
       SMTP_FROM_EMAIL: no-reply@ticketshow.local
       SMTP_FROM_NAME: Ticket Show
       DEFAULT_TO_EMAIL: notifications@example.com
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_INTERNAL_URL: http://minio:9000
     depends_on:
       kafka:
         condition: service_healthy
@@ -344,8 +351,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     healthcheck:
@@ -367,8 +374,8 @@ services:
     environment:
       DATABASE_URL: postgresql://ticketshow:ticketshow123@postgres:5432/ticketshow
       S3_ENDPOINT_URL: http://minio:9000
-      S3_ACCESS_KEY: minioadmin
-      S3_SECRET_KEY: minioadmin
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       S3_BUCKET_NAME: ticket-show-posters
       S3_PUBLIC_URL: http://localhost:9000
     depends_on:

@@ -1,8 +1,12 @@
 import asyncio
 import textwrap
 from email.message import EmailMessage
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import aiosmtplib
+import httpx
 
 from shared.schemas import (
     BookingFailedEvent,
@@ -12,6 +16,7 @@ from shared.schemas import (
 )
 from shared.utils import KafkaConsumerClient, setup_logger
 from .config import settings
+from .ticket_pdf import generate_ticket_pdf
 
 logger = setup_logger(__name__)
 
@@ -32,8 +37,16 @@ def _resolve_recipient_email(event) -> str | None:
     return None
 
 
-async def send_email_notification(to_email: str, subject: str, body: str):
-    """Send email notification using SMTP"""
+async def send_email_notification(
+    to_email: str,
+    subject: str,
+    body: str,
+    attachments: list[tuple[str, bytes, str]] | None = None,
+):
+    """Send email notification using SMTP.
+
+    attachments: optional list of (filename, data_bytes, mime_type) tuples.
+    """
     if not settings.SMTP_HOST:
         raise RuntimeError("SMTP_HOST is not configured")
 
@@ -43,14 +56,28 @@ async def send_email_notification(to_email: str, subject: str, body: str):
     if settings.SMTP_USE_TLS and settings.SMTP_USE_SSL:
         logger.warning("Both SMTP_USE_TLS and SMTP_USE_SSL set; using SSL only")
 
-    message = EmailMessage()
-    message["From"] = _format_from_address()
-    message["To"] = to_email
-    message["Subject"] = subject
-    message.set_content(body)
+    from_addr = _format_from_address()
+
+    if attachments:
+        msg = MIMEMultipart("mixed")
+        msg["From"] = from_addr
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        for filename, data, mime_type in attachments:
+            part = MIMEApplication(data, Name=filename)
+            part["Content-Disposition"] = f'attachment; filename="{filename}"'
+            msg.attach(part)
+    else:
+        msg = EmailMessage()
+        msg["From"] = from_addr
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.set_content(body)
 
     await aiosmtplib.send(
-        message,
+        msg,
         hostname=settings.SMTP_HOST,
         port=settings.SMTP_PORT,
         username=settings.SMTP_USER or None,
@@ -63,12 +90,30 @@ async def send_email_notification(to_email: str, subject: str, body: str):
     logger.info("Email sent to %s: %s", to_email, subject)
 
 
+async def _fetch_qr_images(
+    ticket_qr_urls: list[str],
+    seat_ids: list[int],
+) -> list[bytes | None]:
+    """Fetch QR images from S3 and return raw bytes (or None on failure)."""
+    images: list[bytes | None] = []
+    async with httpx.AsyncClient() as client:
+        for url, seat_id in zip(ticket_qr_urls, seat_ids):
+            try:
+                internal_url = url.replace(settings.S3_PUBLIC_URL, settings.S3_INTERNAL_URL)
+                resp = await client.get(internal_url, timeout=10.0)
+                resp.raise_for_status()
+                images.append(resp.content)
+            except Exception as e:
+                logger.warning("Failed to fetch QR image for seat %s: %s", seat_id, e)
+                images.append(None)
+    return images
+
 
 async def handle_booking_successful(message: dict):
     """Handle booking.successful event"""
     try:
         event = BookingSuccessfulEvent(**message)
-        
+
         logger.info(
             f"Processing booking successful event for booking {event.booking_id}",
             extra={"correlation_id": event.correlation_id},
@@ -80,28 +125,56 @@ async def handle_booking_successful(message: dict):
                 "No recipient email available. Provide user_email in the event or set "
                 "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
             )
-        
-        # Send confirmation notification
-        subject = "Your Ticket Show booking is confirmed"
-        body = textwrap.dedent(
+
+        show_name = event.show_name or "your show"
+        subject = f"You're in! Booking confirmed for {show_name} 🎬"
+        plain_body = textwrap.dedent(
             f"""
-            Hi there,
+            Hey there,
 
-            Awesome news — your booking went through and you’re all set. We can’t wait to see you at the show.
-            For your records, your booking ID is {event.booking_id} and the schedule ID is {event.schedule_id}.
-            You grabbed {len(event.seat_ids)} seat(s) and the total comes to ₹{event.total_amount}.
+            Great news — your booking is confirmed and your tickets are ready!
 
-            If anything looks off or you have a quick question, just hit reply and we’ll jump in.
+            Here's a quick summary:
+              Booking ID: {event.booking_id}
+              Show: {show_name}
+              Seats: {len(event.seat_ids)}
+              Total paid: \u20b9{event.total_amount}
 
-            Thanks again for choosing TicketShow,
-            The TicketShow Team
+            We've attached your tickets as a PDF — just show the QR codes at the entrance and you're good to go.
+
+            Enjoy the show!
+            Team TicketShow
             """
         ).strip()
+
+        attachments = None
+
+        if event.ticket_qr_urls and event.seat_labels and len(event.ticket_qr_urls) == len(event.seat_ids):
+            qr_images = await _fetch_qr_images(event.ticket_qr_urls, event.seat_ids)
+
+            try:
+                pdf_bytes = generate_ticket_pdf(
+                    booking_id=event.booking_id,
+                    schedule_id=event.schedule_id,
+                    total_amount=event.total_amount,
+                    confirmed_at=event.confirmed_at.isoformat() if event.confirmed_at else "",
+                    seat_labels=event.seat_labels,
+                    qr_images=qr_images,
+                    show_name=event.show_name,
+                    show_time=event.show_time,
+                )
+                attachments = [
+                    (f"tickets-booking-{event.booking_id}.pdf", pdf_bytes, "application/pdf"),
+                ]
+                logger.info("Generated PDF ticket for booking %s (%d bytes)", event.booking_id, len(pdf_bytes))
+            except Exception as pdf_err:
+                logger.error("PDF generation failed for booking %s: %s", event.booking_id, pdf_err, exc_info=True)
 
         await send_email_notification(
             to_email=to_email,
             subject=subject,
-            body=body,
+            body=plain_body,
+            attachments=attachments,
         )
 
         logger.info(
@@ -121,7 +194,7 @@ async def handle_booking_failed(message: dict):
     """Handle booking.failed event"""
     try:
         event = BookingFailedEvent(**message)
-        
+
         logger.info(
             f"Processing booking failed event for booking {event.booking_id}",
             extra={"correlation_id": event.correlation_id},
@@ -134,19 +207,17 @@ async def handle_booking_failed(message: dict):
                 "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
             )
 
-        # Send failure notification
-        subject = "We couldn’t complete your Ticket Show booking"
+        subject = "Heads up — your booking couldn't go through"
         body = textwrap.dedent(
             f"""
-            Hi there,
+            Hey there,
 
-            Sorry, we were not able to process your booking this time.
-            For reference, your booking ID is {event.booking_id}. The reason we saw was: {event.reason}.
+            Unfortunately, we weren't able to complete your booking (#{event.booking_id}). The issue we ran into was: {event.reason}.
 
-            If you want to try again, go for it. And if it keeps happening, just reply here and we’ll sort it out with you.
+            No worries though — you can always try booking again. If it keeps happening, just reply to this email and we'll look into it for you.
 
             Thanks for your patience,
-            The TicketShow Team
+            Team TicketShow
             """
         ).strip()
 
@@ -186,19 +257,20 @@ async def handle_refund_initiated(message: dict):
                 "DEFAULT_TO_EMAIL/DEFAULT_EMAIL_DOMAIN."
             )
 
-        subject = "Refund initiated for your Ticket Show booking"
+        subject = "Your refund is on its way"
         body = textwrap.dedent(
             f"""
-            Hi there,
+            Hey there,
 
-            Your booking {event.booking_id} has been cancelled and we have initiated a refund of ₹{event.amount}.
+            Just letting you know — we've initiated a refund of \u20b9{event.amount} for your booking (#{event.booking_id}).
             Reason: {event.reason}
 
-            If this payment was made via DODO, the refund will be sent to your original payment method (not your Ticket Show wallet).
-            We will notify you again once the refund is completed.
+            If you paid via Dodo, the refund will go back to your original payment method. Otherwise, it'll be credited to your TicketShow wallet.
 
-            Thanks,
-            The TicketShow Team
+            We'll drop you another email once the refund is fully processed.
+
+            Cheers,
+            Team TicketShow
             """
         ).strip()
         await send_email_notification(to_email=to_email, subject=subject, body=body)
@@ -237,17 +309,19 @@ async def handle_refund_completed(message: dict):
             destination_text = "to your original payment method"
         method_text = f" through {payment_method}" if payment_method else ""
 
-        subject = "Refund completed for your Ticket Show booking"
+        subject = "Refund complete — \u20b9" + str(event.amount) + " is headed your way"
         body = textwrap.dedent(
             f"""
-            Hi there,
+            Hey there,
 
-            Your refund of ₹s{event.amount} for booking {event.booking_id} has been completed {destination_text}{method_text}{refund_ref}.
+            Good news — your refund of \u20b9{event.amount} for booking #{event.booking_id} has been processed{refund_ref}.
 
-            If you have any issues, reply to this email and we will help you out.
+            The amount has been sent {destination_text}{method_text}. It should reflect in your account shortly.
 
-            Thanks,
-            The TicketShow Team
+            If something doesn't look right, just reply to this email and we'll sort it out.
+
+            Cheers,
+            Team TicketShow
             """
         ).strip()
         await send_email_notification(to_email=to_email, subject=subject, body=body)
@@ -261,7 +335,6 @@ async def handle_refund_completed(message: dict):
 
 async def start_kafka_consumers():
     """Start Kafka consumers for notification events"""
-    # Consumer for booking.successful
     successful_consumer = KafkaConsumerClient(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id="notification-service-successful-group",
@@ -270,7 +343,6 @@ async def start_kafka_consumers():
         retry_delay=1,
     )
 
-    # Consumer for booking.failed
     failed_consumer = KafkaConsumerClient(
         bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
         group_id="notification-service-failed-group",
@@ -302,7 +374,6 @@ async def start_kafka_consumers():
         "Kafka consumers started for booking.successful, booking.failed, notification.refund_initiated, and notification.refund_completed"
     )
 
-    # Start consuming in parallel
     await asyncio.gather(
         successful_consumer.consume(handle_booking_successful),
         failed_consumer.consume(handle_booking_failed),

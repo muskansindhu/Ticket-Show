@@ -238,6 +238,44 @@ async def create_booking(
         )
 
 
+async def _enrich_booking(booking: Booking, db: AsyncSession) -> dict:
+    """Enrich a Booking ORM object with seat_labels, show_name, show_time."""
+    data = BookingResponse.model_validate(booking, from_attributes=True).model_dump()
+
+    # Seat labels
+    try:
+        seat_result = await db.execute(
+            text("SELECT id, seat_number, row_number FROM events.seats WHERE id = ANY(:ids) ORDER BY id"),
+            {"ids": booking.seat_ids},
+        )
+        labels_map = {r.id: {"seat_number": r.seat_number, "row_number": r.row_number} for r in seat_result.fetchall()}
+        data["seat_labels"] = [
+            labels_map.get(sid, {"seat_number": str(sid), "row_number": "?"})
+            for sid in booking.seat_ids
+        ]
+    except Exception as e:
+        logger.warning("Failed to enrich seat labels: %s", e)
+
+    # Show name + time
+    try:
+        sched_result = await db.execute(
+            text(
+                "SELECT s.start_time, sh.title AS show_name "
+                "FROM events.schedules s JOIN events.shows sh ON sh.id = s.show_id "
+                "WHERE s.id = :sid"
+            ),
+            {"sid": booking.schedule_id},
+        )
+        row = sched_result.fetchone()
+        if row:
+            data["show_name"] = row.show_name
+            data["show_time"] = row.start_time.isoformat() if row.start_time else None
+    except Exception as e:
+        logger.warning("Failed to enrich show info: %s", e)
+
+    return data
+
+
 @router.get("/", response_model=List[BookingResponse])
 async def get_user_bookings(
     user_id: int,
@@ -251,7 +289,7 @@ async def get_user_bookings(
             .order_by(Booking.created_at.desc())
         )
         bookings = result.scalars().all()
-        return bookings
+        return [await _enrich_booking(b, db) for b in bookings]
     except Exception as e:
         logger.error(f"Error fetching bookings: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -282,7 +320,7 @@ async def get_booking(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Booking not found",
             )
-        return booking
+        return await _enrich_booking(booking, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -532,3 +570,29 @@ async def update_booking_status(
         logger.error(f"Error updating booking status: {str(e)}", exc_info=True)
         await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update booking status")
+
+
+@router.patch("/{booking_id}/qr-urls")
+async def save_qr_urls(
+    booking_id: int,
+    ticket_qr_urls: List[str] = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save QR ticket URLs for a booking (used internally by payment service)."""
+    try:
+        result = await db.execute(
+            select(Booking).where(Booking.id == booking_id)
+        )
+        booking = result.scalar_one_or_none()
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
+        booking.ticket_qr_urls = ticket_qr_urls
+        await db.commit()
+        await db.refresh(booking)
+        return {"message": "QR URLs saved", "booking_id": booking_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error saving QR URLs: %s", str(e), exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save QR URLs")

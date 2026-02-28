@@ -18,3 +18,4 @@ class Booking(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    ticket_qr_urls = Column(ARRAY(String), nullable=True)

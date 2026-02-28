@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "notification-service"
     LOG_LEVEL: str = "INFO"
 
+    # S3 URL mapping (for fetching QR images inside Docker)
+    S3_PUBLIC_URL: str = "http://localhost:9000"
+    S3_INTERNAL_URL: str = "http://minio:9000"
+
     class Config:
         env_file = ".env"
 

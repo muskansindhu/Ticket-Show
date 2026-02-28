@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,6 +23,12 @@ async def lifespan(app: FastAPI):
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text(
+                "ALTER TABLE bookings.bookings "
+                "ADD COLUMN IF NOT EXISTS ticket_qr_urls TEXT[]"
+            )
+        )
 
     await init_kafka_producer()
 

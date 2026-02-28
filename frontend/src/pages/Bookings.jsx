@@ -240,6 +240,29 @@ export default function Bookings() {
                     </div>
                   </div>
 
+                  {bookingDetail.ticket_qr_urls && bookingDetail.ticket_qr_urls.length > 0 && bookingDetail.status === "CONFIRMED" ? (
+                    <div className="booking-qr-section">
+                      <p className="section-title">Your Tickets</p>
+                      <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "12px" }}>Show these QR codes at the entrance</p>
+                      <div className="booking-qr-grid">
+                        {bookingDetail.ticket_qr_urls.map((url, idx) => {
+                          const seatLabel = bookingDetail.seat_labels && bookingDetail.seat_labels[idx]
+                            ? `Row ${bookingDetail.seat_labels[idx].row_number} - Seat ${bookingDetail.seat_labels[idx].seat_number}`
+                            : `Seat ${seatIds[idx] ?? idx + 1}`;
+                          return (
+                            <div className="qr-ticket-card" key={idx}>
+                              <img
+                                src={url}
+                                alt={`QR Ticket - ${seatLabel}`}
+                                className="qr-ticket-img"
+                              />
+                              <span className="qr-ticket-label">{seatLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="booking-payment-block">
                     <p className="section-title">Payment</p>
                     {paymentDetail ? (

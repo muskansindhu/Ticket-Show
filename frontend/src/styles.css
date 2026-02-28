@@ -894,6 +894,52 @@ select:-webkit-autofill:focus {
   line-height: 1.45;
 }
 
+.booking-qr-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(11, 17, 17, 0.62);
+  padding: 16px;
+  margin-bottom: 4px;
+}
+
+.booking-qr-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+.qr-ticket-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.qr-ticket-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.qr-ticket-img {
+  width: 160px;
+  height: 160px;
+  border-radius: 8px;
+  background: #fff;
+  padding: 8px;
+}
+
+.qr-ticket-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
 .booking-payment-block {
   border: 1px solid var(--border);
   border-radius: 12px;
