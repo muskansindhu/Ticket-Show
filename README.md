@@ -1,6 +1,11 @@
 # 🎬 Ticket Show
 
-This project started as a simple CRUD app for a college course — a basic ticket booking system with a monolithic backend. Over time, it grew into something much bigger: a fully distributed microservices platform with event-driven architecture, real-time search, payment processing, and a lot more under the hood.
+What started as a small college capstone project — my very first CRUD application built by following YouTube tutorials — has evolved into a fully-fledged microservices architecture.
+
+**Why Microservices?**  
+After reading extensively about Low-Level Design (LLD) and High-Level Design (HLD), building theoretical architectures on a whiteboard just wasn't enough. I wanted to get my hands dirty and implement these patterns in a real system. I realized I already had an existing project perfectly suited for this refinement. The goal was to build something more than just a basic ticket booking clone, but rather a robust, real-world distributed system.
+
+Moving forward, I plan to continue integrating new technologies as I learn them. This project has taught me a tremendous amount, evolving from a simple monolith into a complex distributed platform utilizing both synchronous API calls and asynchronous, event-driven pipelines (via Kafka).
 
 If you're here to explore the codebase or set it up locally, this guide has everything you need.
 
@@ -92,17 +97,17 @@ Here's what each service is responsible for:
 
 ## Tech Stack
 
-| Layer | What's Used |
-|-------|------------|
-| Frontend | React 18, Vite, React Router |
-| API Layer | FastAPI with async SQLAlchemy and Pydantic |
-| Database | PostgreSQL (via `asyncpg`) |
-| Messaging | Apache Kafka (via `aiokafka`) |
-| Search | Elasticsearch 8.13 |
-| Object Storage | MinIO (S3-compatible — stores posters) |
-| Payments | Dodo Payments (checkout sessions, webhooks, refunds) |
-| Email | SMTP → Mailpit (for local dev) |
-| Containers | Docker Compose |
+| Layer          | What's Used                                          |
+| -------------- | ---------------------------------------------------- |
+| Frontend       | React 18, Vite, React Router                         |
+| API Layer      | FastAPI with async SQLAlchemy and Pydantic           |
+| Database       | PostgreSQL (via `asyncpg`)                           |
+| Messaging      | Apache Kafka (via `aiokafka`)                        |
+| Search         | Elasticsearch 8.13                                   |
+| Object Storage | MinIO (S3-compatible — stores posters)               |
+| Payments       | Dodo Payments (checkout sessions, webhooks, refunds) |
+| Email          | SMTP → Mailpit (for local dev)                       |
+| Containers     | Docker Compose                                       |
 
 ---
 
@@ -161,6 +166,7 @@ Ticket-Show/
 ### Prerequisites
 
 You'll need:
+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with Compose V2)
 - [Node.js](https://nodejs.org/) 18+
 
@@ -184,6 +190,8 @@ MINIO_ROOT_PASSWORD=minioadmin
 DODO_PAYMENTS_API_KEY=your_key
 DODO_PAYMENTS_WEBHOOK_KEY=your_webhook_key
 DODO_PAYMENTS_PRODUCT_ID=your_product_id
+DODO_PAYMENTS_RETURN_URL=http://localhost:5173/
+DODO_PAYMENTS_ENVIRONMENT=test_mode
 ```
 
 ### 3. Start the Backend
@@ -207,12 +215,12 @@ npm run dev
 
 Once everything is running:
 
-| What | URL |
-|------|-----|
-| Frontend | [localhost:5173](http://localhost:5173) |
-| API Docs (Swagger) | [localhost:8000/docs](http://localhost:8000/docs) |
-| MinIO Console | [localhost:9001](http://localhost:9001) — login with `minioadmin` / `minioadmin` |
-| Email Inbox (Mailpit) | [localhost:8025](http://localhost:8025) |
+| What                  | URL                                                                              |
+| --------------------- | -------------------------------------------------------------------------------- |
+| Frontend              | [localhost:5173](http://localhost:5173)                                          |
+| API Docs (Swagger)    | [localhost:8000/docs](http://localhost:8000/docs)                                |
+| MinIO Console         | [localhost:9001](http://localhost:9001) — login with `minioadmin` / `minioadmin` |
+| Email Inbox (Mailpit) | [localhost:8025](http://localhost:8025)                                          |
 
 ---
 
