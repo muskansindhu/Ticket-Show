@@ -1,7 +1,9 @@
 version: "3.8"
 
 services:
-  # 1. PostgreSQL Database
+  # =======================
+  # 1️⃣ PostgreSQL Database
+  # =======================
   postgres:
     image: postgres:15-alpine
     container_name: ticket-show-postgres
@@ -22,59 +24,360 @@ services:
     networks:
       - ticket-show-network
 
-  # 2. Auth Service
+  # =======================
+  # 2️⃣ Auth Service
+  # =======================
   auth-service:
     build:
       context: .
       dockerfile: services/auth_service/Dockerfile
     container_name: ticket-show-auth
-    expose:
-      - "8000"
     ports:
       - "8001:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - ticket-show-network
 
-  # 3. Event Service
+  # =======================
+  # 3️⃣ Event Service
+  # =======================
   event-service:
     build:
       context: .
       dockerfile: services/event_service/Dockerfile
     container_name: ticket-show-event
-    environment:
-      DATABASE_URL: postgresql://ticketshow:ticketshow123@postgres:5432/ticketshow
     ports:
       - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ticket-show-posters
+      S3_PUBLIC_URL: http://localhost:9000
     depends_on:
       postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       - ticket-show-network
 
-  # 4. API Gateway
+  # =======================
+  # 4️⃣ Booking Service
+  # =======================
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking_service/Dockerfile
+    container_name: ticket-show-booking
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 5️⃣ Payment Service
+  # =======================
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment_service/Dockerfile
+    container_name: ticket-show-payment
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      JWT_SECRET: super-secret-key
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DODO_PAYMENTS_API_KEY: ${DODO_PAYMENTS_API_KEY}
+      DODO_PAYMENTS_WEBHOOK_KEY: ${DODO_PAYMENTS_WEBHOOK_KEY}
+      DODO_PAYMENTS_PRODUCT_ID: ${DODO_PAYMENTS_PRODUCT_ID}
+      DODO_PAYMENTS_RETURN_URL: ${DODO_PAYMENTS_RETURN_URL:-http://localhost:5173/bookings}
+      DODO_PAYMENTS_ENVIRONMENT: ${DODO_PAYMENTS_ENVIRONMENT:-test_mode}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ticket-show-posters
+      S3_PUBLIC_URL: http://localhost:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 6️⃣ Notification Service
+  # =======================
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification_service/Dockerfile
+    container_name: ticket-show-notification
+    ports:
+      - "8005:8000"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      SMTP_FROM_EMAIL: no-reply@ticketshow.local
+      SMTP_FROM_NAME: Ticket Show
+      DEFAULT_TO_EMAIL: notifications@example.com
+      S3_PUBLIC_URL: http://localhost:9000
+      S3_INTERNAL_URL: http://minio:9000
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 7️⃣ API Gateway
+  # =======================
   api-gateway:
     build:
       context: .
       dockerfile: services/api_gateway/Dockerfile
     container_name: ticket-show-gateway
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     ports:
       - "8000:8000"
     environment:
-      - AUTH_SERVICE_URL=http://auth-service:8000
-      - EVENT_SERVICE_URL=http://event-service:8000
+      AUTH_SERVICE_URL: http://auth-service:8000
+      EVENT_SERVICE_URL: http://event-service:8000
+      BOOKING_SERVICE_URL: http://booking-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      SEARCH_SERVICE_URL: http://search-service:8000
+      JWT_SECRET: super-secret-key
     depends_on:
-      - auth-service
+      auth-service:
+        condition: service_started
+      event-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      search-service:
+        condition: service_started
     networks:
       - ticket-show-network
 
+  # =======================
+  # 8️⃣ Search Service
+  # =======================
+  search-service:
+    build:
+      context: .
+      dockerfile: services/search_service/Dockerfile
+    container_name: ticket-show-search
+    ports:
+      - "8006:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ticketshow:ticketshow123@postgres:5432/ticketshow
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # Elasticsearch
+  # =======================
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: ticket-show-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # ES Init (one-shot seeder)
+  # =======================
+  es-init:
+    build:
+      context: .
+      dockerfile: infrastructure/elasticsearch/Dockerfile
+    container_name: ticket-show-es-init
+    environment:
+      DATABASE_URL: postgresql://ticketshow:ticketshow123@postgres:5432/ticketshow
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 9️⃣ Zookeeper
+  # =======================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: ticket-show-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 🔟 Kafka
+  # =======================
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ticket-show-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-broker-api-versions --bootstrap-server localhost:9092",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 1️⃣1️⃣ Mailpit (SMTP)
+  # =======================
+  mailpit:
+    image: axllent/mailpit:v1.14.1
+    container_name: ticket-show-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # 1️⃣2️⃣ MinIO (S3)
+  # =======================
+  minio:
+    image: minio/minio:latest
+    container_name: ticket-show-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ticket-show-network
+
+  # =======================
+  # S3 Init (one-shot seeder)
+  # =======================
+  s3-init:
+    build:
+      context: ..
+      dockerfile: backend/infrastructure/s3/Dockerfile
+    container_name: ticket-show-s3-init
+    environment:
+      DATABASE_URL: postgresql://ticketshow:ticketshow123@postgres:5432/ticketshow
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET_NAME: ticket-show-posters
+      S3_PUBLIC_URL: http://localhost:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - ticket-show-network
+
+# =======================
+# Networks
+# =======================
 networks:
   ticket-show-network:
     driver: bridge
 
+# =======================
+# Named Volumes
+# =======================
 volumes:
   postgres_data:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  es_data:
+  minio_data:
